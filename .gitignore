@@ -1,0 +1,22 @@
+# Secrets and Environment Variables
+.env
+.env.*
+*.env
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Build artifacts
+target/
+dist/
+build/
+node_modules/
