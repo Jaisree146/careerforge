@@ -48,7 +48,7 @@ public class SecurityConfig {
                 // Public endpoints
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/health/**").permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/companies/**", "/api/v1/locations/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/companies/**", "/api/v1/locations/**", "/api/v1/jobs/**", "/api/v1/skills/**").permitAll()
                 // Role-specific protected endpoints
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/recruiter/**").hasAnyRole("RECRUITER", "ADMIN")
