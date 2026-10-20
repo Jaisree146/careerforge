@@ -11,4 +11,7 @@ import java.util.List;
 public interface JobSkillRepository extends JpaRepository<JobSkill, JobSkillId> {
 
     List<JobSkill> findByIdJobId(Long jobId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT js FROM JobSkill js JOIN FETCH js.skill WHERE js.id.jobId = :jobId")
+    List<JobSkill> findByJobIdWithSkill(@org.springframework.data.repository.query.Param("jobId") Long jobId);
 }

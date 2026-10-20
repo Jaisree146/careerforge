@@ -12,6 +12,9 @@ public interface CandidateSkillRepository extends JpaRepository<CandidateSkill, 
 
     List<CandidateSkill> findByIdUserId(Long userId);
 
+    @org.springframework.data.jpa.repository.Query("SELECT cs FROM CandidateSkill cs JOIN FETCH cs.skill WHERE cs.id.userId = :userId")
+    List<CandidateSkill> findByUserIdWithSkill(@org.springframework.data.repository.query.Param("userId") Long userId);
+
     boolean existsByIdUserIdAndIdSkillId(Long userId, Long skillId);
 
     void deleteByIdUserIdAndIdSkillId(Long userId, Long skillId);
