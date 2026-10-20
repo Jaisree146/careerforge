@@ -34,19 +34,22 @@ public class ApplicationService {
     private final JobRepository jobRepository;
     private final UserRepository userRepository;
     private final ResumeRepository resumeRepository;
+    private final org.springframework.context.ApplicationEventPublisher eventPublisher;
 
     public ApplicationService(
             ApplicationRepository applicationRepository,
             SavedJobRepository savedJobRepository,
             JobRepository jobRepository,
             UserRepository userRepository,
-            ResumeRepository resumeRepository
+            ResumeRepository resumeRepository,
+            org.springframework.context.ApplicationEventPublisher eventPublisher
     ) {
         this.applicationRepository = applicationRepository;
         this.savedJobRepository = savedJobRepository;
         this.jobRepository = jobRepository;
         this.userRepository = userRepository;
         this.resumeRepository = resumeRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -88,6 +91,15 @@ public class ApplicationService {
         String notes = request != null ? request.getNotes() : null;
         Application application = new Application(candidate, job, resume, ApplicationStatus.APPLIED, notes);
         Application saved = applicationRepository.save(application);
+
+        eventPublisher.publishEvent(new com.careerforge.backend.modules.notification.events.ApplicationSubmittedEvent(
+                saved.getId(),
+                candidate.getId(),
+                candidate.getName(),
+                job.getRecruiter().getId(),
+                job.getId(),
+                job.getTitle()
+        ));
 
         return mapToApplicationResponse(saved);
     }
@@ -165,6 +177,17 @@ public class ApplicationService {
         }
 
         Application updated = applicationRepository.save(application);
+
+        eventPublisher.publishEvent(new com.careerforge.backend.modules.notification.events.ApplicationStatusChangedEvent(
+                updated.getId(),
+                updated.getCandidate().getId(),
+                recruiterId,
+                updated.getJob().getId(),
+                updated.getJob().getTitle(),
+                updated.getStatus(),
+                updated.getNotes()
+        ));
+
         return mapToApplicationResponse(updated);
     }
 
