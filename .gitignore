@@ -20,3 +20,5 @@ target/
 dist/
 build/
 node_modules/
+uploads/
+**/uploads/

@@ -58,6 +58,8 @@ public class SecurityConfig {
                     "/swagger-resources/**",
                     "/webjars/**"
                 ).permitAll()
+                // Candidate resume download endpoint is accessible by candidate, recruiter, and admin
+                .requestMatchers(HttpMethod.GET, "/api/v1/candidate/resume/download/**").hasAnyRole("CANDIDATE", "RECRUITER", "ADMIN")
                 // Role-specific protected endpoints
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/recruiter/**").hasAnyRole("RECRUITER", "ADMIN")
