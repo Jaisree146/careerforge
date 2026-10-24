@@ -24,17 +24,26 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
-@Tag(name = "Notifications", description = "Real-time user event notifications, unread counts, and read tracking")
+import com.careerforge.backend.modules.notification.model.NotificationType;
+import com.careerforge.backend.modules.notification.websocket.WebSocketNotificationService;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.PostMapping;
+
+@Tag(name = "Notifications", description = "Real-time user event notifications, unread counts, and WebSocket messaging")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/notifications")
 public class NotificationController {
 
     private final NotificationService notificationService;
+    private final WebSocketNotificationService webSocketNotificationService;
     private final UserRepository userRepository;
 
-    public NotificationController(NotificationService notificationService, UserRepository userRepository) {
+    public NotificationController(NotificationService notificationService,
+                                  WebSocketNotificationService webSocketNotificationService,
+                                  UserRepository userRepository) {
         this.notificationService = notificationService;
+        this.webSocketNotificationService = webSocketNotificationService;
         this.userRepository = userRepository;
     }
 
@@ -80,6 +89,37 @@ public class NotificationController {
         Long userId = getAuthenticatedUserId(userDetails);
         notificationService.markAllAsRead(userId);
         return ResponseEntity.ok(ApiResponse.success("All notifications marked as read", null));
+    }
+
+    @Operation(summary = "Test real-time WebSocket push notification", description = "Dispatches an instant real-time notification to the current authenticated user's WebSocket queue (/user/{email}/queue/notifications).")
+    @PostMapping("/test-push")
+    public ResponseEntity<ApiResponse<NotificationResponse>> sendTestPush(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam(defaultValue = "WebSocket Test Notification") String title,
+            @RequestParam(defaultValue = "Real-time message received via STOMP /queue/notifications!") String message
+    ) {
+        Long userId = getAuthenticatedUserId(userDetails);
+        NotificationResponse response = notificationService.createNotification(
+                userId,
+                title,
+                message,
+                NotificationType.APPLICATION_STATUS_UPDATED,
+                null,
+                "TEST"
+        );
+        webSocketNotificationService.sendNotificationToUser(userDetails.getUsername(), response);
+        return ResponseEntity.ok(ApiResponse.success("Real-time notification pushed successfully", response));
+    }
+
+    @Operation(summary = "Broadcast public announcement", description = "Broadcasts a platform-wide announcement to all connected WebSocket clients on /topic/announcements.", security = @SecurityRequirement(name = "bearerAuth"))
+    @PostMapping("/broadcast")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> broadcastAnnouncement(
+            @RequestParam String title,
+            @RequestParam String message
+    ) {
+        webSocketNotificationService.broadcastAnnouncement(title, message);
+        return ResponseEntity.ok(ApiResponse.success("Public announcement broadcast successfully", null));
     }
 
     private Long getAuthenticatedUserId(UserDetails userDetails) {

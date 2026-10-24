@@ -58,6 +58,8 @@ public class SecurityConfig {
                     "/swagger-resources/**",
                     "/webjars/**"
                 ).permitAll()
+                // WebSocket endpoint handshake
+                .requestMatchers("/ws/**").permitAll()
                 // Candidate resume download endpoint is accessible by candidate, recruiter, and admin
                 .requestMatchers(HttpMethod.GET, "/api/v1/candidate/resume/download/**").hasAnyRole("CANDIDATE", "RECRUITER", "ADMIN")
                 // Role-specific protected endpoints

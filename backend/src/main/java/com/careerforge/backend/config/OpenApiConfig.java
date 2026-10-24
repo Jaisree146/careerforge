@@ -1,5 +1,4 @@
 package com.careerforge.backend.config;
-
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
@@ -13,7 +12,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
-
 /**
  * OpenAPI 3.0 / Swagger UI Configuration for CareerForge.
  * Configures interactive API exploration, JWT Bearer Token authentication schema,
