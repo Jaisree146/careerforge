@@ -18,6 +18,8 @@ import com.careerforge.backend.modules.job.repository.CandidateSkillRepository;
 import com.careerforge.backend.modules.job.repository.JobRepository;
 import com.careerforge.backend.modules.job.repository.JobSkillRepository;
 import com.careerforge.backend.modules.notification.repository.AuditLogRepository;
+import com.careerforge.backend.config.CacheConfig;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -129,6 +131,7 @@ public class AnalyticsService {
         );
     }
 
+    @Cacheable(value = CacheConfig.CACHE_SKILL_DEMAND_SUPPLY, key = "#limit")
     @Transactional(readOnly = true)
     public SkillDemandSupplyResponse getSkillDemandSupply(int limit) {
         int pageLimit = limit > 0 ? limit : 10;
@@ -186,6 +189,7 @@ public class AnalyticsService {
         );
     }
 
+    @Cacheable(value = CacheConfig.CACHE_PLATFORM_KPIS)
     @Transactional(readOnly = true)
     public AdminPlatformKpiResponse getPlatformKpis() {
         long totalUsers = userRepository.count();

@@ -9,6 +9,9 @@ import com.careerforge.backend.modules.company.model.Company;
 import com.careerforge.backend.modules.company.model.Location;
 import com.careerforge.backend.modules.company.repository.CompanyRepository;
 import com.careerforge.backend.modules.company.repository.LocationRepository;
+import com.careerforge.backend.config.CacheConfig;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +29,7 @@ public class CompanyService {
         this.locationRepository = locationRepository;
     }
 
+    @CacheEvict(value = CacheConfig.CACHE_LOCATIONS, allEntries = true)
     @Transactional
     public LocationDto createLocation(LocationDto dto) {
         if (locationRepository.existsByNameIgnoreCase(dto.getName().trim())) {
@@ -36,6 +40,7 @@ public class CompanyService {
         return new LocationDto(saved.getId(), saved.getName());
     }
 
+    @Cacheable(value = CacheConfig.CACHE_LOCATIONS)
     @Transactional(readOnly = true)
     public List<LocationDto> getAllLocations() {
         return locationRepository.findAll().stream()
@@ -43,6 +48,7 @@ public class CompanyService {
                 .collect(Collectors.toList());
     }
 
+    @CacheEvict(value = {CacheConfig.CACHE_COMPANIES, CacheConfig.CACHE_COMPANY_BY_ID}, allEntries = true)
     @Transactional
     public CompanyResponse createCompany(CompanyRequest request) {
         Location location = null;
@@ -62,6 +68,7 @@ public class CompanyService {
         return mapToResponse(saved);
     }
 
+    @CacheEvict(value = {CacheConfig.CACHE_COMPANIES, CacheConfig.CACHE_COMPANY_BY_ID}, allEntries = true)
     @Transactional
     public CompanyResponse updateCompany(Long id, CompanyRequest request) {
         Company company = companyRepository.findById(id)
@@ -83,6 +90,7 @@ public class CompanyService {
         return mapToResponse(updated);
     }
 
+    @Cacheable(value = CacheConfig.CACHE_COMPANY_BY_ID, key = "#id")
     @Transactional(readOnly = true)
     public CompanyResponse getCompanyById(Long id) {
         Company company = companyRepository.findById(id)
@@ -90,6 +98,7 @@ public class CompanyService {
         return mapToResponse(company);
     }
 
+    @Cacheable(value = CacheConfig.CACHE_COMPANIES)
     @Transactional(readOnly = true)
     public List<CompanyResponse> getAllCompanies() {
         return companyRepository.findAll().stream()

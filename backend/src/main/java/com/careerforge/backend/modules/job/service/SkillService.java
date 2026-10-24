@@ -11,6 +11,9 @@ import com.careerforge.backend.modules.job.model.CandidateSkillId;
 import com.careerforge.backend.modules.job.model.Skill;
 import com.careerforge.backend.modules.job.repository.CandidateSkillRepository;
 import com.careerforge.backend.modules.job.repository.SkillRepository;
+import com.careerforge.backend.config.CacheConfig;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +37,7 @@ public class SkillService {
         this.userRepository = userRepository;
     }
 
+    @CacheEvict(value = CacheConfig.CACHE_SKILLS, allEntries = true)
     @Transactional
     public SkillDto createSkill(SkillDto dto) {
         String trimmed = dto.getName().trim();
@@ -44,6 +48,7 @@ public class SkillService {
         return new SkillDto(saved.getId(), saved.getName());
     }
 
+    @Cacheable(value = CacheConfig.CACHE_SKILLS)
     @Transactional(readOnly = true)
     public List<SkillDto> getAllSkills() {
         return skillRepository.findAll().stream()
