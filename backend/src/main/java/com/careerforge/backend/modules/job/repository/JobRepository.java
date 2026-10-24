@@ -16,4 +16,10 @@ public interface JobRepository extends JpaRepository<Job, Long>, JpaSpecificatio
     List<Job> findByRecruiterIdOrderByCreatedAtDesc(Long recruiterId);
 
     Page<Job> findByStatusOrderByCreatedAtDesc(JobStatus status, Pageable pageable);
+
+    long countByRecruiterId(Long recruiterId);
+
+    long countByRecruiterIdAndStatus(Long recruiterId, JobStatus status);
+
+    long countByStatus(JobStatus status);
 }

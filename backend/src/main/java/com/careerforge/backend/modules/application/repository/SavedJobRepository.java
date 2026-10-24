@@ -20,6 +20,8 @@ public interface SavedJobRepository extends JpaRepository<SavedJob, SavedJobId> 
 
     void deleteByIdUserIdAndIdJobId(Long userId, Long jobId);
 
+    long countByIdUserId(Long userId);
+
     @Query(
             value = "SELECT sj FROM SavedJob sj " +
                     "JOIN FETCH sj.job j " +

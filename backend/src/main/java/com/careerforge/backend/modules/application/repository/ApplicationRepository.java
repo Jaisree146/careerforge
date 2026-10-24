@@ -34,6 +34,17 @@ public interface ApplicationRepository extends JpaRepository<Application, Long> 
 
     long countByJobIdAndStatus(Long jobId, ApplicationStatus status);
 
+    long countByCandidateId(Long candidateId);
+
+    @Query("SELECT a.status, COUNT(a) FROM Application a WHERE a.job.recruiter.id = :recruiterId GROUP BY a.status")
+    java.util.List<Object[]> countApplicationsByStatusForRecruiter(@Param("recruiterId") Long recruiterId);
+
+    @Query("SELECT a.job.id, a.job.title, a.job.status, a.status, COUNT(a) FROM Application a WHERE a.job.recruiter.id = :recruiterId GROUP BY a.job.id, a.job.title, a.job.status, a.status")
+    java.util.List<Object[]> countApplicationsPerJobAndStatusForRecruiter(@Param("recruiterId") Long recruiterId);
+
+    @Query("SELECT a.status, COUNT(a) FROM Application a WHERE a.candidate.id = :candidateId GROUP BY a.status")
+    java.util.List<Object[]> countApplicationsByStatusForCandidate(@Param("candidateId") Long candidateId);
+
     @Query("SELECT a FROM Application a " +
            "JOIN FETCH a.candidate " +
            "JOIN FETCH a.job j " +

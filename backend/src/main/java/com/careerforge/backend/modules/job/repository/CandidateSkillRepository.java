@@ -18,4 +18,7 @@ public interface CandidateSkillRepository extends JpaRepository<CandidateSkill, 
     boolean existsByIdUserIdAndIdSkillId(Long userId, Long skillId);
 
     void deleteByIdUserIdAndIdSkillId(Long userId, Long skillId);
+
+    @org.springframework.data.jpa.repository.Query("SELECT cs.skill.name, COUNT(cs) FROM CandidateSkill cs GROUP BY cs.skill.name ORDER BY COUNT(cs) DESC")
+    List<Object[]> findTopCandidateSkills(org.springframework.data.domain.Pageable pageable);
 }
