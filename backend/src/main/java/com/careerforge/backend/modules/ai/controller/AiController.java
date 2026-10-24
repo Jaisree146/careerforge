@@ -23,6 +23,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Google Gemini AI", description = "Generative AI capabilities: job description generation, resume skills extraction, candidate interview questions, and tailored cover letters")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/ai")
 public class AiController {
@@ -35,6 +41,7 @@ public class AiController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Generate job description with Gemini AI", description = "Generates a structured, engaging job description with responsibilities, qualifications, and recommended skills based on title and requirements.")
     @PostMapping("/jobs/generate-description")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")
     public ResponseEntity<ApiResponse<JobDescriptionGenerateResponse>> generateJobDescription(
@@ -44,6 +51,7 @@ public class AiController {
         return ResponseEntity.ok(ApiResponse.success("AI job description generated successfully", response));
     }
 
+    @Operation(summary = "Analyze resume text with Gemini AI", description = "Extracts technical skills, soft skills, seniority level, summary, and improvement suggestions from resume text.")
     @PostMapping("/resume/analyze")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<ResumeAnalysisResponse>> analyzeResume(
@@ -53,6 +61,7 @@ public class AiController {
         return ResponseEntity.ok(ApiResponse.success("AI resume analysis completed successfully", response));
     }
 
+    @Operation(summary = "Generate tailored interview questions with Gemini AI", description = "Synthesizes candidate profile against job posting to generate tailored behavioral, technical, and scenario-based interview questions.")
     @GetMapping("/recruiter/applications/{applicationId}/interview-questions")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")
     public ResponseEntity<ApiResponse<InterviewQuestionsResponse>> generateInterviewQuestions(
@@ -64,6 +73,7 @@ public class AiController {
         return ResponseEntity.ok(ApiResponse.success("AI interview questions generated successfully", response));
     }
 
+    @Operation(summary = "Generate candidate job advice and cover letter draft with Gemini AI", description = "Analyzes fit strengths, missing areas, key interview talking points, and a customized cover letter draft.")
     @GetMapping("/candidate/jobs/{jobId}/advice")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<ApplicationAdviceResponse>> generateApplicationAdvice(

@@ -21,6 +21,11 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Authentication", description = "User registration, JWT login authentication, and authenticated identity retrieval")
 @RestController
 @RequestMapping("/api/v1/auth")
 public class AuthController {
@@ -33,6 +38,7 @@ public class AuthController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Register new account", description = "Creates a new User account (CANDIDATE, RECRUITER, or ADMIN) with BCrypt password hashing and returns an initial JWT bearer token.")
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
         AuthResponse response = authService.register(request);
@@ -40,12 +46,14 @@ public class AuthController {
                 .body(ApiResponse.success("User registered successfully", response));
     }
 
+    @Operation(summary = "User login", description = "Authenticates user credentials against BCrypt hash and issues a signed JWT bearer token.")
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody LoginRequest request) {
         AuthResponse response = authService.login(request);
         return ResponseEntity.ok(ApiResponse.success("Authentication successful", response));
     }
 
+    @Operation(summary = "Get current authenticated user profile", description = "Retrieves user details extracted from the provided JWT bearer token.", security = @SecurityRequirement(name = "bearerAuth"))
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getCurrentUser(@AuthenticationPrincipal UserDetails userDetails) {
         if (userDetails == null) {

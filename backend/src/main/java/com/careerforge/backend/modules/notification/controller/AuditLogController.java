@@ -13,6 +13,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Audit Logs", description = "System-wide administrative security audit trail and event logging")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/admin/audit-logs")
 @PreAuthorize("hasRole('ADMIN')")
@@ -24,6 +30,7 @@ public class AuditLogController {
         this.notificationService = notificationService;
     }
 
+    @Operation(summary = "Get system audit logs", description = "Retrieves immutable administrative audit trail logs with actor, action, and target entity metadata.")
     @GetMapping
     public ResponseEntity<ApiResponse<Page<AuditLogResponse>>> getAuditLogs(
             @RequestParam(defaultValue = "0") int page,
@@ -34,3 +41,4 @@ public class AuditLogController {
         return ResponseEntity.ok(ApiResponse.success("System audit logs retrieved successfully", logs));
     }
 }
+

@@ -25,6 +25,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Recruiter Applicant Tracking", description = "Applicant tracking pipeline, candidate review, and stage progression")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/recruiter")
 public class RecruiterApplicationController {
@@ -37,6 +43,7 @@ public class RecruiterApplicationController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Get applicants for a job", description = "Retrieves paginated applications for a specific recruiter-owned job posting, filterable by stage.")
     @GetMapping("/jobs/{jobId}/applications")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<ApplicationResponse>>> getJobApplications(
@@ -56,6 +63,7 @@ public class RecruiterApplicationController {
         return ResponseEntity.ok(ApiResponse.success("Job applications retrieved", applications));
     }
 
+    @Operation(summary = "Get all recruiter applicants across jobs", description = "Retrieves all applicants across all jobs posted by the recruiter.")
     @GetMapping("/applications")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<ApplicationResponse>>> getAllApplications(
@@ -74,6 +82,7 @@ public class RecruiterApplicationController {
         return ResponseEntity.ok(ApiResponse.success("All recruiter applications retrieved", applications));
     }
 
+    @Operation(summary = "Update applicant status", description = "Progresses candidate through pipeline stages (e.g. SUBMITTED -> SHORTLISTED -> INTERVIEW_SCHEDULED -> OFFERED/REJECTED). Emits notification events.")
     @PatchMapping("/applications/{id}/status")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")
     public ResponseEntity<ApiResponse<ApplicationResponse>> updateApplicationStatus(

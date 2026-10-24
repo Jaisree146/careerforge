@@ -25,6 +25,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Candidate Profiles", description = "Candidate profile bio, education history, work experience, and resume metadata")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/candidate")
 @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
@@ -38,6 +44,7 @@ public class CandidateProfileController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Get candidate profile", description = "Retrieves current authenticated candidate's bio, education, experience, and resume metadata.")
     @GetMapping("/profile")
     public ResponseEntity<ApiResponse<CandidateProfileResponse>> getProfile(@AuthenticationPrincipal UserDetails userDetails) {
         Long userId = getAuthenticatedUserId(userDetails);
@@ -45,6 +52,7 @@ public class CandidateProfileController {
         return ResponseEntity.ok(ApiResponse.success("Candidate profile retrieved", response));
     }
 
+    @Operation(summary = "Update candidate bio", description = "Updates candidate headline, phone, location, LinkedIn URL, portfolio, and bio text.")
     @PutMapping("/profile")
     public ResponseEntity<ApiResponse<CandidateProfileResponse>> updateBio(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -55,6 +63,7 @@ public class CandidateProfileController {
         return ResponseEntity.ok(ApiResponse.success("Candidate profile updated", response));
     }
 
+    @Operation(summary = "Add education record", description = "Appends an institution, degree, field of study, and dates to candidate profile.")
     @PostMapping("/education")
     public ResponseEntity<ApiResponse<EducationDto>> addEducation(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -66,6 +75,7 @@ public class CandidateProfileController {
                 .body(ApiResponse.success("Education record added", response));
     }
 
+    @Operation(summary = "Delete education record", description = "Removes an education record by ID.")
     @DeleteMapping("/education/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteEducation(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -76,6 +86,7 @@ public class CandidateProfileController {
         return ResponseEntity.ok(ApiResponse.success("Education record deleted", null));
     }
 
+    @Operation(summary = "Add experience record", description = "Appends a job title, company, dates, and responsibilities to candidate profile.")
     @PostMapping("/experience")
     public ResponseEntity<ApiResponse<ExperienceDto>> addExperience(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -87,6 +98,7 @@ public class CandidateProfileController {
                 .body(ApiResponse.success("Experience record added", response));
     }
 
+    @Operation(summary = "Delete experience record", description = "Removes an experience record by ID.")
     @DeleteMapping("/experience/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteExperience(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -97,6 +109,7 @@ public class CandidateProfileController {
         return ResponseEntity.ok(ApiResponse.success("Experience record deleted", null));
     }
 
+    @Operation(summary = "Save resume metadata", description = "Uploads or updates candidate resume URL and file name reference.")
     @PostMapping("/resume")
     public ResponseEntity<ApiResponse<ResumeDto>> uploadResume(
             @AuthenticationPrincipal UserDetails userDetails,

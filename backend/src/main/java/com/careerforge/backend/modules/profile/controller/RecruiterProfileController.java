@@ -18,6 +18,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Recruiter Profiles", description = "Recruiter profile management and company association")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/recruiter")
 @PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")
@@ -31,6 +37,7 @@ public class RecruiterProfileController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Get recruiter profile", description = "Retrieves current authenticated recruiter's company, department, phone, and verification status.")
     @GetMapping("/profile")
     public ResponseEntity<ApiResponse<RecruiterProfileResponse>> getProfile(@AuthenticationPrincipal UserDetails userDetails) {
         Long userId = getAuthenticatedUserId(userDetails);
@@ -38,6 +45,7 @@ public class RecruiterProfileController {
         return ResponseEntity.ok(ApiResponse.success("Recruiter profile retrieved", response));
     }
 
+    @Operation(summary = "Update recruiter profile", description = "Updates recruiter company link, phone number, and department name.")
     @PutMapping("/profile")
     public ResponseEntity<ApiResponse<RecruiterProfileResponse>> updateProfile(
             @AuthenticationPrincipal UserDetails userDetails,

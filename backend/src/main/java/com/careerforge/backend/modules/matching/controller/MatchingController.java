@@ -19,6 +19,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "AI Matching Engine", description = "Multi-factor candidate-job compatibility scoring across skills, experience, and completeness")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1")
 public class MatchingController {
@@ -31,6 +37,7 @@ public class MatchingController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Get recommended jobs for candidate", description = "Calculates multi-factor compatibility scores across published jobs and returns top matches ranked by match percentage.")
     @GetMapping("/candidate/job-matches")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<JobMatchResponse>>> getCandidateJobMatches(
@@ -42,6 +49,7 @@ public class MatchingController {
         return ResponseEntity.ok(ApiResponse.success("Recommended job matches calculated successfully", matches));
     }
 
+    @Operation(summary = "Get detailed match score for a job", description = "Returns deep dimensional breakdown of compatibility (skills 60%, experience 25%, profile completeness 15%) between candidate and job.")
     @GetMapping("/jobs/{jobId}/match")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<JobMatchResponse>> getJobMatchDetails(
@@ -53,6 +61,7 @@ public class MatchingController {
         return ResponseEntity.ok(ApiResponse.success("Job match score retrieved successfully", match));
     }
 
+    @Operation(summary = "Rank candidate applicants for a job", description = "Scores and ranks all candidates against job requirements for recruiter review.")
     @GetMapping("/recruiter/jobs/{jobId}/candidate-matches")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<CandidateMatchResponse>>> getCandidateMatchesForJob(

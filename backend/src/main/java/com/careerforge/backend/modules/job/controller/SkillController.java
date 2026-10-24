@@ -22,6 +22,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Skills", description = "Global skill taxonomy and candidate skill proficiencies")
 @RestController
 @RequestMapping("/api/v1")
 public class SkillController {
@@ -34,6 +39,7 @@ public class SkillController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Create skill in taxonomy", description = "Adds a new skill to the global taxonomy.", security = @SecurityRequirement(name = "bearerAuth"))
     @PostMapping("/skills")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")
     public ResponseEntity<ApiResponse<SkillDto>> createSkill(@Valid @RequestBody SkillDto dto) {
@@ -42,11 +48,13 @@ public class SkillController {
                 .body(ApiResponse.success("Skill created successfully", created));
     }
 
+    @Operation(summary = "List all skills", description = "Retrieves the full list of standardized skills in the platform taxonomy.")
     @GetMapping("/skills")
     public ResponseEntity<ApiResponse<List<SkillDto>>> getAllSkills() {
         return ResponseEntity.ok(ApiResponse.success("Skills retrieved successfully", skillService.getAllSkills()));
     }
 
+    @Operation(summary = "Get candidate skills", description = "Retrieves all skills attached to the current candidate profile.", security = @SecurityRequirement(name = "bearerAuth"))
     @GetMapping("/candidate/skills")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<SkillDto>>> getCandidateSkills(@AuthenticationPrincipal UserDetails userDetails) {
@@ -54,6 +62,7 @@ public class SkillController {
         return ResponseEntity.ok(ApiResponse.success("Candidate skills retrieved", skillService.getCandidateSkills(userId)));
     }
 
+    @Operation(summary = "Add skill to candidate profile", description = "Associates a skill from taxonomy with the authenticated candidate.", security = @SecurityRequirement(name = "bearerAuth"))
     @PostMapping("/candidate/skills/{skillId}")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<SkillDto>> addCandidateSkill(
@@ -66,6 +75,7 @@ public class SkillController {
                 .body(ApiResponse.success("Skill added to profile", added));
     }
 
+    @Operation(summary = "Remove skill from candidate profile", description = "Disassociates a skill from the candidate profile.", security = @SecurityRequirement(name = "bearerAuth"))
     @DeleteMapping("/candidate/skills/{skillId}")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<Void>> removeCandidateSkill(

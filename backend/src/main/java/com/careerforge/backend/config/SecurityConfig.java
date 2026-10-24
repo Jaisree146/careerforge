@@ -49,6 +49,15 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/health/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/companies/**", "/api/v1/locations/**", "/api/v1/jobs/**", "/api/v1/skills/**").permitAll()
+                // Swagger & OpenAPI 3 documentation endpoints
+                .requestMatchers(
+                    "/v3/api-docs/**",
+                    "/v3/api-docs.yaml",
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/swagger-resources/**",
+                    "/webjars/**"
+                ).permitAll()
                 // Role-specific protected endpoints
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/recruiter/**").hasAnyRole("RECRUITER", "ADMIN")

@@ -13,6 +13,10 @@ import java.sql.DatabaseMetaData;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "System Health", description = "Application uptime probe and MySQL connection health verification")
 @RestController
 @RequestMapping("/api/v1/health")
 public class HealthController {
@@ -28,6 +32,7 @@ public class HealthController {
      * Verifies that the Spring context is active, HikariCP pool can acquire a connection,
      * and queries live MySQL server metadata.
      */
+    @Operation(summary = "System health check", description = "Probes backend service availability and verifies live MySQL database connection pool status.")
     @GetMapping
     public ResponseEntity<ApiResponse<Map<String, Object>>> checkHealth() {
         Map<String, Object> healthDetails = new LinkedHashMap<>();

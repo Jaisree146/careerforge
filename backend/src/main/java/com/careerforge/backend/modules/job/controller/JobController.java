@@ -31,6 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Jobs", description = "Job posting lifecycle management, search, and filtering")
 @RestController
 @RequestMapping("/api/v1")
 public class JobController {
@@ -43,6 +48,7 @@ public class JobController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Create job posting", description = "Creates a new job posting with company, location, experience range, salary, and required skills.", security = @SecurityRequirement(name = "bearerAuth"))
     @PostMapping("/jobs")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")
     public ResponseEntity<ApiResponse<JobResponse>> createJob(
@@ -55,6 +61,7 @@ public class JobController {
                 .body(ApiResponse.success("Job posting created successfully", response));
     }
 
+    @Operation(summary = "Update job posting", description = "Updates job details, skills, location, and salary info.", security = @SecurityRequirement(name = "bearerAuth"))
     @PutMapping("/jobs/{id}")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")
     public ResponseEntity<ApiResponse<JobResponse>> updateJob(
@@ -67,6 +74,7 @@ public class JobController {
         return ResponseEntity.ok(ApiResponse.success("Job posting updated successfully", response));
     }
 
+    @Operation(summary = "Update job status", description = "Transitions job status (e.g. DRAFT -> PUBLISHED -> CLOSED).", security = @SecurityRequirement(name = "bearerAuth"))
     @PatchMapping("/jobs/{id}/status")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")
     public ResponseEntity<ApiResponse<JobResponse>> updateJobStatus(
@@ -79,6 +87,7 @@ public class JobController {
         return ResponseEntity.ok(ApiResponse.success("Job status updated successfully", response));
     }
 
+    @Operation(summary = "Get jobs posted by current recruiter", description = "Lists all jobs posted by the authenticated recruiter.", security = @SecurityRequirement(name = "bearerAuth"))
     @GetMapping("/recruiter/jobs")
     @PreAuthorize("hasAnyRole('RECRUITER', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<JobResponse>>> getRecruiterJobs(
@@ -89,12 +98,14 @@ public class JobController {
         return ResponseEntity.ok(ApiResponse.success("Recruiter jobs retrieved", jobs));
     }
 
+    @Operation(summary = "Get job posting by ID", description = "Retrieves public details of a single job posting.")
     @GetMapping("/jobs/{id}")
     public ResponseEntity<ApiResponse<JobResponse>> getJobById(@PathVariable Long id) {
         JobResponse response = jobService.getJobById(id);
         return ResponseEntity.ok(ApiResponse.success("Job retrieved successfully", response));
     }
 
+    @Operation(summary = "Search published jobs", description = "Search and filter open jobs with pagination by title, location, company, and employment type.")
     @GetMapping("/jobs")
     public ResponseEntity<ApiResponse<Page<JobResponse>>> searchJobs(
             @RequestParam(required = false) String title,

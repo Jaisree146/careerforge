@@ -20,6 +20,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Notifications", description = "Real-time user event notifications, unread counts, and read tracking")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1/notifications")
 public class NotificationController {
@@ -32,6 +38,7 @@ public class NotificationController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Get user notifications", description = "Retrieves paginated notifications for the authenticated user ordered by newest first.")
     @GetMapping
     public ResponseEntity<ApiResponse<Page<NotificationResponse>>> getUserNotifications(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -44,6 +51,7 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success("Notifications retrieved successfully", notifications));
     }
 
+    @Operation(summary = "Get unread notifications count", description = "Returns total count of unread notifications for badge indicators.")
     @GetMapping("/unread-count")
     public ResponseEntity<ApiResponse<UnreadCountResponse>> getUnreadCount(
             @AuthenticationPrincipal UserDetails userDetails
@@ -53,6 +61,7 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success("Unread count retrieved", count));
     }
 
+    @Operation(summary = "Mark single notification as read", description = "Marks a specific notification as read.")
     @PatchMapping("/{id}/read")
     public ResponseEntity<ApiResponse<NotificationResponse>> markAsRead(
             @AuthenticationPrincipal UserDetails userDetails,
@@ -63,6 +72,7 @@ public class NotificationController {
         return ResponseEntity.ok(ApiResponse.success("Notification marked as read", response));
     }
 
+    @Operation(summary = "Mark all notifications as read", description = "Marks all unread notifications for user as read.")
     @PatchMapping("/read-all")
     public ResponseEntity<ApiResponse<Void>> markAllAsRead(
             @AuthenticationPrincipal UserDetails userDetails

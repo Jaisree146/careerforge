@@ -29,6 +29,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
+@Tag(name = "Candidate Applications & Saved Jobs", description = "Job applications, tracking lifecycle, and saved/bookmarked jobs")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/v1")
 public class CandidateApplicationController {
@@ -41,6 +47,7 @@ public class CandidateApplicationController {
         this.userRepository = userRepository;
     }
 
+    @Operation(summary = "Apply for a job", description = "Submits an application with candidate's resume and optional cover letter. Prevents duplicate applications.")
     @PostMapping("/jobs/{jobId}/apply")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<ApplicationResponse>> applyToJob(
@@ -54,6 +61,7 @@ public class CandidateApplicationController {
                 .body(ApiResponse.success("Job application submitted successfully", response));
     }
 
+    @Operation(summary = "Get candidate applications", description = "Lists all applications submitted by candidate with optional status filter and pagination.")
     @GetMapping("/candidate/applications")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<ApplicationResponse>>> getCandidateApplications(
@@ -72,6 +80,7 @@ public class CandidateApplicationController {
         return ResponseEntity.ok(ApiResponse.success("Candidate applications retrieved", applications));
     }
 
+    @Operation(summary = "Get candidate application by ID", description = "Retrieves full application details and status timeline.")
     @GetMapping("/candidate/applications/{id}")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<ApplicationResponse>> getApplicationById(
@@ -83,6 +92,7 @@ public class CandidateApplicationController {
         return ResponseEntity.ok(ApiResponse.success("Application details retrieved", response));
     }
 
+    @Operation(summary = "Bookmark a job", description = "Saves a job posting to candidate's saved jobs list.")
     @PostMapping("/jobs/{jobId}/save")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<Void>> saveJob(
@@ -95,6 +105,7 @@ public class CandidateApplicationController {
                 .body(ApiResponse.success("Job bookmarked successfully", null));
     }
 
+    @Operation(summary = "Unbookmark a job", description = "Removes a job posting from candidate's saved jobs list.")
     @DeleteMapping("/jobs/{jobId}/save")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<Void>> unsaveJob(
@@ -106,6 +117,7 @@ public class CandidateApplicationController {
         return ResponseEntity.ok(ApiResponse.success("Job removed from bookmarks", null));
     }
 
+    @Operation(summary = "List candidate saved jobs", description = "Lists all bookmarked jobs with pagination.")
     @GetMapping("/candidate/saved-jobs")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<Page<SavedJobResponse>>> getSavedJobs(
@@ -119,6 +131,7 @@ public class CandidateApplicationController {
         return ResponseEntity.ok(ApiResponse.success("Saved jobs retrieved", savedJobs));
     }
 
+    @Operation(summary = "Check if job is saved", description = "Checks whether a specific job is bookmarked by the candidate.")
     @GetMapping("/jobs/{jobId}/is-saved")
     @PreAuthorize("hasAnyRole('CANDIDATE', 'ADMIN')")
     public ResponseEntity<ApiResponse<Map<String, Boolean>>> isJobSaved(
