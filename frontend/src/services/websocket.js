@@ -10,19 +10,27 @@ export const initWebSocket = ({ onNotification, onAnnouncement }) => {
 
   // If already active, disconnect before reconnecting
   if (stompClient && stompClient.active) {
-    stompClient.deactivate();
+    try {
+      stompClient.deactivate();
+    } catch (e) {}
   }
 
-  stompClient = new Client({
-    webSocketFactory: () => new SockJS('/ws'),
-    connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
-    debug: (str) => {
-      // console.log('[STOMP]', str);
-    },
-    reconnectDelay: 5000,
-    heartbeatIncoming: 4000,
-    heartbeatOutgoing: 4000,
-  });
+  try {
+    stompClient = new Client({
+      webSocketFactory: () => {
+        try {
+          return new SockJS('/ws');
+        } catch (e) {
+          const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          return new WebSocket(`${proto}//${window.location.host}/ws`);
+        }
+      },
+      connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+      debug: () => {},
+      reconnectDelay: 5000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+    });
 
   stompClient.onConnect = (frame) => {
     // 1. Subscribe to User Personal Queue (Application status updates, matches, direct alerts)
@@ -55,7 +63,11 @@ export const initWebSocket = ({ onNotification, onAnnouncement }) => {
   };
 
   stompClient.activate();
-  return stompClient;
+    return stompClient;
+  } catch (err) {
+    console.warn('Failed to initialize STOMP WebSocket client', err);
+    return null;
+  }
 };
 
 export const disconnectWebSocket = () => {
