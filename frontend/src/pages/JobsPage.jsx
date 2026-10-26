@@ -65,11 +65,10 @@ export const JobsPage = () => {
 
   const fetchSavedJobs = async () => {
     try {
-      const saved = await applicationApi.getSavedJobs();
-      if (Array.isArray(saved)) {
-        const ids = new Set(saved.map((item) => item.job?.id || item.jobId));
-        setSavedJobIds(ids);
-      }
+      const data = await applicationApi.getSavedJobs();
+      const list = Array.isArray(data) ? data : (data?.content || []);
+      const ids = new Set(list.map((item) => item.job?.id || item.jobId));
+      setSavedJobIds(ids);
     } catch (err) {
       console.warn('Failed to fetch saved jobs', err);
     }

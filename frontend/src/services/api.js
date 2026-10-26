@@ -181,39 +181,63 @@ export const resumeApi = {
 
 // 5. AI Matching Engine APIs
 export const matchingApi = {
-  getMatchForJob: (jobId) => request(`/candidate/match/jobs/${jobId}`),
-  getRecommendedJobs: () => request('/candidate/match/recommended-jobs'),
-  getTopCandidatesForJob: (jobId) => request(`/recruiter/match/jobs/${jobId}/candidates`),
+  getMatchForJob: (jobId) => request(`/jobs/${jobId}/match`),
+  getRecommendedJobs: (limit = 10) => request(`/candidate/job-matches?limit=${limit}`),
+  getTopCandidatesForJob: (jobId, limit = 10) => request(`/recruiter/jobs/${jobId}/candidate-matches?limit=${limit}`),
 };
 
 // 6. Applications & Saved Jobs APIs
 export const applicationApi = {
-  apply: (jobId, coverNote = '') => request(`/candidate/applications/apply/${jobId}`, {
+  apply: (jobId, notes = '', resumeId = null) => request(`/jobs/${jobId}/apply`, {
     method: 'POST',
-    body: JSON.stringify({ coverNote }),
+    body: JSON.stringify({ notes, resumeId }),
   }),
 
-  getMyApplications: () => request('/candidate/applications'),
+  getMyApplications: (page = 0, size = 10, status = '') => {
+    const q = new URLSearchParams({ page, size });
+    if (status) q.append('status', status);
+    return request(`/candidate/applications?${q.toString()}`);
+  },
 
-  getJobApplications: (jobId) => request(`/recruiter/applications/job/${jobId}`),
+  getJobApplications: (jobId, page = 0, size = 10, status = '') => {
+    const q = new URLSearchParams({ page, size });
+    if (status) q.append('status', status);
+    return request(`/recruiter/jobs/${jobId}/applications?${q.toString()}`);
+  },
 
-  updateStatus: (appId, status, reviewNotes = '') => request(`/recruiter/applications/${appId}/status`, {
+  getAllRecruiterApplications: (page = 0, size = 10, status = '') => {
+    const q = new URLSearchParams({ page, size });
+    if (status) q.append('status', status);
+    return request(`/recruiter/applications?${q.toString()}`);
+  },
+
+  updateStatus: (appId, status, notes = '') => request(`/recruiter/applications/${appId}/status`, {
     method: 'PATCH',
-    body: JSON.stringify({ status, reviewNotes }),
+    body: JSON.stringify({ status, notes }),
   }),
 
-  saveJob: (jobId) => request(`/candidate/saved-jobs/${jobId}`, { method: 'POST' }),
-  unsaveJob: (jobId) => request(`/candidate/saved-jobs/${jobId}`, { method: 'DELETE' }),
-  getSavedJobs: () => request('/candidate/saved-jobs'),
+  saveJob: (jobId) => request(`/jobs/${jobId}/save`, { method: 'POST' }),
+  unsaveJob: (jobId) => request(`/jobs/${jobId}/save`, { method: 'DELETE' }),
+  getSavedJobs: (page = 0, size = 10) => request(`/candidate/saved-jobs?page=${page}&size=${size}`),
+  isJobSaved: (jobId) => request(`/jobs/${jobId}/is-saved`),
 };
 
-// 7. Recruitment Analytics APIs
+// 7. Notification APIs
+export const notificationApi = {
+  getNotifications: (page = 0, size = 10) => request(`/notifications?page=${page}&size=${size}`),
+  getUnreadCount: () => request('/notifications/unread-count'),
+  markAsRead: (id) => request(`/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllAsRead: () => request('/notifications/read-all', { method: 'PATCH' }),
+  testPush: (title, message) => request(`/notifications/test-push?title=${encodeURIComponent(title)}&message=${encodeURIComponent(message)}`, { method: 'POST' }),
+};
+
+// 8. Recruitment Analytics APIs
 export const analyticsApi = {
   getPlatformKpis: () => request('/analytics/kpis'),
   getSkillDemandSupply: () => request('/analytics/skills/demand-supply'),
 };
 
-// 8. Gemini Generative AI APIs
+// 9. Gemini Generative AI APIs
 export const aiApi = {
   generateJobDescription: (data) => request('/ai/jobs/generate-description', {
     method: 'POST',
@@ -225,3 +249,4 @@ export const aiApi = {
     body: JSON.stringify(data),
   }),
 };
+
