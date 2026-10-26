@@ -1,0 +1,91 @@
+services:
+  # =============================================================
+  # 1. MySQL 8 Database Service with Volume Persistence & Healthcheck
+  # =============================================================
+  mysql:
+    image: mysql:8.0
+    container_name: careerforge-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-careerforge_root_pass}
+      MYSQL_DATABASE: ${DB_NAME:-careerforge_db}
+      MYSQL_USER: ${DB_USER:-careerforge_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-careerforge_secure_pass}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    networks:
+      - careerforge-net
+
+  # =============================================================
+  # 2. Spring Boot Backend Service (Java 21, Flyway, Gemini AI)
+  # =============================================================
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: careerforge-backend
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/${DB_NAME:-careerforge_db}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USERNAME: ${DB_USER:-careerforge_user}
+      DB_PASSWORD: ${DB_PASSWORD:-careerforge_secure_pass}
+      JWT_SECRET: ${JWT_SECRET:-404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-1.5-flash}
+      FILE_UPLOAD_DIR: /app/uploads/resumes
+      RATE_LIMIT_AUTH_CAPACITY: ${RATE_LIMIT_AUTH_CAPACITY:-10}
+      RATE_LIMIT_AI_CAPACITY: ${RATE_LIMIT_AI_CAPACITY:-5}
+      RATE_LIMIT_GENERAL_CAPACITY: ${RATE_LIMIT_GENERAL_CAPACITY:-100}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - resumes_data:/app/uploads/resumes
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 35s
+    networks:
+      - careerforge-net
+
+  # =============================================================
+  # 3. React + Vite Frontend Service (Nginx Reverse Proxy & Static SPA)
+  # =============================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: careerforge-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    networks:
+      - careerforge-net
+
+# ===============================================================
+# Persistent Named Volumes & Bridge Network
+# ===============================================================
+volumes:
+  mysql_data:
+    driver: local
+  resumes_data:
+    driver: local
+
+networks:
+  careerforge-net:
+    driver: bridge
