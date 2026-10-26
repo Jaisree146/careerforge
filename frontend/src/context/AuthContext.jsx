@@ -6,73 +6,56 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(getStoredUser());
   const [token, setToken] = useState(getToken());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Verify token validity on initial mount
-    const verifyUser = async () => {
-      const storedToken = getToken();
-      if (!storedToken) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const currentUser = await authApi.me();
-        setUser({
-          userId: currentUser.userId || currentUser.id,
-          name: currentUser.name,
-          email: currentUser.email,
-          role: currentUser.role,
-        });
-      } catch (err) {
-        console.warn('Auth verification failed, clearing credentials', err.message);
-        clearAuthData();
-        setUser(null);
-        setToken(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    verifyUser();
-
-    // Listen for global unauthorized events from api.js
+    // Listen for global unauthorized events from Axios interceptor
     const handleUnauthorized = () => {
+      clearAuthData();
       setUser(null);
       setToken(null);
     };
-    window.addEventListener('auth:unauthorized', handleUnauthorized);
 
+    window.addEventListener('careerforge:unauthorized', handleUnauthorized);
     return () => {
-      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+      window.removeEventListener('careerforge:unauthorized', handleUnauthorized);
     };
   }, []);
 
   const login = async (credentials) => {
-    const data = await authApi.login(credentials);
-    const authUser = {
-      userId: data.userId,
-      name: data.name,
-      email: data.email,
-      role: data.role,
-    };
-    setUser(authUser);
-    setToken(data.token);
-    return data;
+    setLoading(true);
+    try {
+      const data = await authApi.login(credentials);
+      const authUser = {
+        userId: data.userId,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+      };
+      setUser(authUser);
+      setToken(data.token);
+      return data;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const register = async (userData) => {
-    const data = await authApi.register(userData);
-    const authUser = {
-      userId: data.userId,
-      name: data.name,
-      email: data.email,
-      role: data.role,
-    };
-    setUser(authUser);
-    setToken(data.token);
-    return data;
+    setLoading(true);
+    try {
+      const data = await authApi.register(userData);
+      const authUser = {
+        userId: data.userId,
+        name: data.name,
+        email: data.email,
+        role: data.role,
+      };
+      setUser(authUser);
+      setToken(data.token);
+      return data;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const logout = () => {

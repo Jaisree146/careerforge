@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
+import { notificationApi } from '../../services/api';
 import { 
   Zap, 
   Briefcase, 
@@ -238,23 +239,46 @@ export const Navbar = () => {
                       <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#f8fafc' }}>
                         Live Notifications
                       </div>
-                      {unreadCount > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <button
-                          onClick={markAllAsRead}
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await notificationApi.testPush('STOMP Live Notification', 'Real-time WebSocket event received successfully!');
+                            } catch (e) {
+                              console.warn('Test push error', e);
+                            }
+                          }}
                           style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#3b82f6',
-                            fontSize: '0.75rem',
+                            background: 'rgba(59, 130, 246, 0.1)',
+                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                            borderRadius: '6px',
+                            color: '#93c5fd',
+                            fontSize: '0.7rem',
+                            padding: '3px 8px',
                             cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
                           }}
                         >
-                          <CheckCheck size={14} /> Mark read
+                          ⚡ Test Push
                         </button>
-                      )}
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={markAllAsRead}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: '#3b82f6',
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <CheckCheck size={14} /> Mark read
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {notifications.length === 0 ? (

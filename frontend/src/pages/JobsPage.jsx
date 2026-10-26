@@ -1,6 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { jobsApi, applicationApi, matchingApi } from '../services/api';
+import {
+  useJobs,
+  useSavedJobs,
+  useApplyJobMutation,
+  useToggleSaveJobMutation,
+} from '../hooks/useQueries';
+import { matchingApi } from '../services/api';
 import { FitScoreBadge } from '../components/common/FitScoreBadge';
 import { 
   Search, 
@@ -15,108 +21,61 @@ import {
   X, 
   Send,
   Building,
-  Filter
+  Check,
+  AlertCircle
 } from 'lucide-react';
 
 export const JobsPage = () => {
   const { isAuthenticated, isCandidate } = useAuth();
 
-  const [jobs, setJobs] = useState([]);
-  const [matchScores, setMatchScores] = useState({});
-  const [savedJobIds, setSavedJobIds] = useState(new Set());
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
+  // Search & Filter state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [activeSearch, setActiveSearch] = useState('');
+  const [selectedType, setSelectedType] = useState('');
+
+  // TanStack Queries
+  const { data: jobsData, isLoading: jobsLoading } = useJobs({
+    search: activeSearch || undefined,
+    employmentType: selectedType || undefined,
+  });
+
+  const { data: savedJobsData } = useSavedJobs({}, isAuthenticated && isCandidate);
+
+  // Mutations
+  const applyMutation = useApplyJobMutation();
+  const toggleSaveMutation = useToggleSaveJobMutation();
+
+  // Selected Job & AI Breakdown Modal State
   const [selectedJob, setSelectedJob] = useState(null);
   const [matchDetail, setMatchDetail] = useState(null);
   const [matchLoading, setMatchLoading] = useState(false);
 
-  // Apply Modal state
+  // Apply Modal State
   const [applyingJob, setApplyingJob] = useState(null);
   const [coverNote, setCoverNote] = useState('');
-  const [applyLoading, setApplyLoading] = useState(false);
   const [applySuccess, setApplySuccess] = useState(false);
   const [applyError, setApplyError] = useState(null);
 
-  // Fetch Jobs & Saved Jobs
-  useEffect(() => {
-    fetchJobs();
-    if (isAuthenticated && isCandidate) {
-      fetchSavedJobs();
-    }
-  }, [isAuthenticated, isCandidate]);
+  // Normalize jobs list
+  const jobList = jobsData?.content || (Array.isArray(jobsData) ? jobsData : []);
 
-  const fetchJobs = async () => {
-    setLoading(true);
-    try {
-      const data = await jobsApi.getAll({ search });
-      const jobList = data?.content || (Array.isArray(data) ? data : []);
-      setJobs(jobList);
-
-      // If candidate is logged in, fetch match scores for visible jobs
-      if (isAuthenticated && isCandidate && jobList.length > 0) {
-        fetchBatchMatchScores(jobList);
-      }
-    } catch (err) {
-      console.error('Failed to load jobs', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchSavedJobs = async () => {
-    try {
-      const data = await applicationApi.getSavedJobs();
-      const list = Array.isArray(data) ? data : (data?.content || []);
-      const ids = new Set(list.map((item) => item.job?.id || item.jobId));
-      setSavedJobIds(ids);
-    } catch (err) {
-      console.warn('Failed to fetch saved jobs', err);
-    }
-  };
-
-  const fetchBatchMatchScores = async (jobList) => {
-    const scores = {};
-    for (const job of jobList.slice(0, 10)) {
-      try {
-        const match = await matchingApi.getMatchForJob(job.id);
-        if (match) {
-          scores[job.id] = match;
-        }
-      } catch (e) {
-        // Ignore single score failure
-      }
-    }
-    setMatchScores(scores);
-  };
+  // Saved job IDs set
+  const savedList = savedJobsData?.content || (Array.isArray(savedJobsData) ? savedJobsData : []);
+  const savedJobIds = new Set(savedList.map((item) => item.job?.id || item.jobId));
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchJobs();
+    setActiveSearch(searchTerm);
   };
 
-  const toggleSaveJob = async (e, jobId) => {
+  const handleToggleSave = async (e, jobId) => {
     e.stopPropagation();
     if (!isAuthenticated || !isCandidate) return;
-
     const isSaved = savedJobIds.has(jobId);
-    try {
-      if (isSaved) {
-        await applicationApi.unsaveJob(jobId);
-        setSavedJobIds((prev) => {
-          const next = new Set(prev);
-          next.delete(jobId);
-          return next;
-        });
-      } else {
-        await applicationApi.saveJob(jobId);
-        setSavedJobIds((prev) => new Set(prev).add(jobId));
-      }
-    } catch (err) {
-      console.error('Failed to toggle save job', err);
-    }
+    await toggleSaveMutation.mutateAsync({ jobId, isSaved });
   };
 
-  const openJobModal = async (job) => {
+  const handleOpenDetailModal = async (job) => {
     setSelectedJob(job);
     setMatchDetail(null);
 
@@ -126,21 +85,23 @@ export const JobsPage = () => {
         const detail = await matchingApi.getMatchForJob(job.id);
         setMatchDetail(detail);
       } catch (err) {
-        console.warn('Failed to fetch deep match breakdown', err);
+        console.warn('Match detail fetch failed', err);
       } finally {
         setMatchLoading(false);
       }
     }
   };
 
-  const handleApply = async (e) => {
+  const handleApplySubmit = async (e) => {
     e.preventDefault();
     if (!applyingJob) return;
 
-    setApplyLoading(true);
     setApplyError(null);
     try {
-      await applicationApi.apply(applyingJob.id, coverNote);
+      await applyMutation.mutateAsync({
+        jobId: applyingJob.id,
+        notes: coverNote,
+      });
       setApplySuccess(true);
       setTimeout(() => {
         setApplySuccess(false);
@@ -149,10 +110,16 @@ export const JobsPage = () => {
       }, 1800);
     } catch (err) {
       setApplyError(err.message || 'Application failed. You might have already applied.');
-    } finally {
-      setApplyLoading(false);
     }
   };
+
+  const employmentTypes = [
+    { label: 'All Types', value: '' },
+    { label: 'Full-Time', value: 'FULL_TIME' },
+    { label: 'Part-Time', value: 'PART_TIME' },
+    { label: 'Contract', value: 'CONTRACT' },
+    { label: 'Remote', value: 'REMOTE' },
+  ];
 
   return (
     <div className="container animate-fade-in" style={{ padding: '40px 1.5rem 80px 1.5rem' }}>
@@ -162,141 +129,230 @@ export const JobsPage = () => {
           Explore <span className="text-gradient">Career Opportunities</span>
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-          Real-time roles with AI fit score evaluations and 1-click application
+          Discover verified roles scored by our multi-dimensional AI matching engine.
         </p>
 
-        {/* Search Bar Form */}
-        <form onSubmit={handleSearchSubmit} style={{ marginTop: '24px', display: 'flex', gap: '12px', maxWidth: '720px' }}>
-          <div style={{ position: 'relative', flex: 1 }}>
-            <Search size={18} color="#64748b" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
-            <input
-              type="text"
-              className="form-input"
-              style={{ paddingLeft: '42px', height: '46px' }}
-              placeholder="Search by job title, company, or technical skill..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+        {/* Search Bar & Type Filters */}
+        <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '10px' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <Search
+                size={18}
+                style={{
+                  position: 'absolute',
+                  left: '16px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-muted)',
+                }}
+              />
+              <input
+                type="text"
+                className="form-input"
+                style={{ paddingLeft: '44px' }}
+                placeholder="Search by job title, technology stack, architecture..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <button type="submit" className="btn btn-primary" style={{ padding: '0 24px' }}>
+              Search Roles
+            </button>
+          </form>
+
+          {/* Filter Pills */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {employmentTypes.map((type) => (
+              <button
+                key={type.value}
+                onClick={() => setSelectedType(type.value)}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '20px',
+                  border: '1px solid',
+                  borderColor: selectedType === type.value ? 'var(--primary-glow)' : 'var(--border-subtle)',
+                  background: selectedType === type.value ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+                  color: selectedType === type.value ? '#93c5fd' : 'var(--text-secondary)',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  fontWeight: selectedType === type.value ? 600 : 400,
+                  transition: 'var(--transition-fast)',
+                }}
+              >
+                {type.label}
+              </button>
+            ))}
           </div>
-          <button type="submit" className="btn btn-primary" style={{ padding: '0 24px', height: '46px' }}>
-            Search
-          </button>
-        </form>
+        </div>
       </div>
 
       {/* Jobs Grid */}
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-secondary)' }}>
+      {jobsLoading ? (
+        <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-muted)' }}>
           Loading live opportunities...
         </div>
-      ) : jobs.length === 0 ? (
-        <div className="glass-panel" style={{ textAlign: 'center', padding: '60px', color: 'var(--text-secondary)' }}>
-          <Briefcase size={40} style={{ margin: '0 auto 12px auto', opacity: 0.5 }} />
-          <h3>No matching job postings found</h3>
-          <p style={{ fontSize: '0.875rem', marginTop: '6px' }}>Try adjusting your search criteria</p>
+      ) : jobList.length === 0 ? (
+        <div className="card" style={{ padding: '60px 20px', textAlign: 'center' }}>
+          <Briefcase size={48} color="var(--text-muted)" style={{ margin: '0 auto 16px auto' }} />
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>No matching job postings found</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            Try broadening your search query or removing filters.
+          </p>
         </div>
       ) : (
-        <div className="grid-cols-2" style={{ gap: '20px' }}>
-          {jobs.map((job) => {
-            const match = matchScores[job.id];
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '24px' }}>
+          {jobList.map((job) => {
             const isSaved = savedJobIds.has(job.id);
 
             return (
               <div
                 key={job.id}
-                className="glass-panel"
-                onClick={() => openJobModal(job)}
+                className="card"
                 style={{
-                  padding: '24px',
-                  cursor: 'pointer',
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
-                  transition: 'all 0.2s',
+                  padding: '24px',
+                  cursor: 'pointer',
                   position: 'relative',
                 }}
+                onClick={() => handleOpenDetailModal(job)}
               >
                 <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                    <div>
-                      <h3 style={{ fontSize: '1.2rem', color: '#f8fafc', marginBottom: '4px' }}>
-                        {job.title}
-                      </h3>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#3b82f6', fontSize: '0.875rem', fontWeight: 500 }}>
-                        <Building size={15} />
-                        <span>{job.company?.name || job.companyName || 'Verified Partner'}</span>
+                  {/* Top Header: Company & Bookmark */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '8px',
+                        background: 'rgba(59, 130, 246, 0.12)',
+                        border: '1px solid rgba(59, 130, 246, 0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <Building size={18} color="var(--primary-glow)" />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#f8fafc' }}>
+                          {job.company?.name || 'Top Enterprise'}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <MapPin size={12} /> {job.location?.name || 'Remote / Hybrid'}
+                        </div>
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {match && (
-                        <FitScoreBadge score={match.overallScore} fitLevel={match.fitLevel} size="sm" />
-                      )}
-
-                      {isAuthenticated && isCandidate && (
-                        <button
-                          type="button"
-                          onClick={(e) => toggleSaveJob(e, job.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: isSaved ? '#3b82f6' : 'var(--text-muted)',
-                            cursor: 'pointer',
-                            padding: '4px',
-                          }}
-                          title={isSaved ? 'Unsave Job' : 'Save Job'}
-                        >
-                          {isSaved ? <BookmarkCheck size={20} fill="#3b82f6" /> : <Bookmark size={20} />}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Metadata Chips */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', margin: '14px 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <MapPin size={14} color="#60a5fa" />
-                      <span>{job.location?.city || job.locationName || 'Remote / Hybrid'}</span>
-                    </div>
-
-                    {job.salaryMin && job.salaryMax && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <DollarSign size={14} color="#34d399" />
-                        <span>${(job.salaryMin / 1000).toFixed(0)}k - ${(job.salaryMax / 1000).toFixed(0)}k</span>
-                      </div>
+                    {isAuthenticated && isCandidate && (
+                      <button
+                        onClick={(e) => handleToggleSave(e, job.id)}
+                        disabled={toggleSaveMutation.isPending}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: isSaved ? '#3b82f6' : 'var(--text-muted)',
+                          cursor: 'pointer',
+                          padding: '4px',
+                        }}
+                      >
+                        {isSaved ? <BookmarkCheck size={20} /> : <Bookmark size={20} />}
+                      </button>
                     )}
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Briefcase size={14} color="#a78bfa" />
-                      <span>{job.experienceYears ? `${job.experienceYears}+ yrs exp` : 'Entry / Mid'}</span>
-                    </div>
                   </div>
 
+                  {/* Title */}
+                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '10px', color: '#ffffff' }}>
+                    {job.title}
+                  </h3>
+
+                  {/* Badges: Salary, Experience, Type */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
+                    {job.salary && (
+                      <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>
+                        <DollarSign size={12} /> {job.salary}
+                      </span>
+                    )}
+                    {job.experience && (
+                      <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
+                        <Briefcase size={12} /> {job.experience}
+                      </span>
+                    )}
+                    {job.employmentType && (
+                      <span className="badge badge-purple" style={{ fontSize: '0.75rem' }}>
+                        {job.employmentType.replace('_', ' ')}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Description preview */}
                   <p style={{
                     fontSize: '0.85rem',
                     color: 'var(--text-secondary)',
                     lineHeight: 1.5,
+                    marginBottom: '16px',
                     display: '-webkit-box',
-                    WebkitLineClamp: 2,
+                    WebkitLineClamp: 3,
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
                   }}>
                     {job.description}
                   </p>
+
+                  {/* Skills tags */}
+                  {job.skills && job.skills.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
+                      {job.skills.slice(0, 4).map((s, idx) => (
+                        <span
+                          key={idx}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: 'rgba(255, 255, 255, 0.04)',
+                            border: '1px solid var(--border-subtle)',
+                            fontSize: '0.75rem',
+                            color: 'var(--text-secondary)',
+                          }}
+                        >
+                          {s.skillName || s.name || s}
+                        </span>
+                      ))}
+                      {job.skills.length > 4 && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                          +{job.skills.length - 4} more
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {/* Required Skills Badges */}
-                <div style={{ marginTop: '16px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                  {(job.skills || job.requiredSkills || []).slice(0, 4).map((s, idx) => (
-                    <span key={idx} className="badge badge-primary">
-                      {s.name || s}
-                    </span>
-                  ))}
-                  {(job.skills?.length > 4 || job.requiredSkills?.length > 4) && (
-                    <span className="badge" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-muted)' }}>
-                      +{(job.skills?.length || job.requiredSkills?.length) - 4} more
-                    </span>
-                  )}
+                {/* Footer Actions */}
+                <div style={{
+                  paddingTop: '16px',
+                  borderTop: '1px solid var(--border-subtle)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Posted {new Date(job.createdAt).toLocaleDateString()}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    {isAuthenticated && isCandidate && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setApplyingJob(job);
+                        }}
+                        className="btn btn-primary"
+                        style={{ padding: '6px 14px', fontSize: '0.8rem' }}
+                      >
+                        Apply Now
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -304,15 +360,12 @@ export const JobsPage = () => {
         </div>
       )}
 
-      {/* Job Details Modal Drawer */}
+      {/* Deep AI Match Breakdown & Job Detail Modal */}
       {selectedJob && (
         <div style={{
           position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
+          inset: 0,
+          background: 'rgba(0,0,0,0.75)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
@@ -321,154 +374,190 @@ export const JobsPage = () => {
           padding: '20px',
         }}>
           <div
-            className="glass-panel animate-fade-in"
+            className="card animate-fade-in"
             style={{
               maxWidth: '680px',
               width: '100%',
               maxHeight: '90vh',
               overflowY: 'auto',
               padding: '32px',
-              background: '#0f172a',
-              position: 'relative',
             }}
           >
-            <button
-              onClick={() => setSelectedJob(null)}
-              style={{
-                position: 'absolute',
-                top: '20px',
-                right: '20px',
-                background: 'rgba(255, 255, 255, 0.05)',
-                border: 'none',
-                borderRadius: '8px',
-                width: '32px',
-                height: '32px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              <X size={18} />
-            </button>
-
-            <div>
-              <div className="badge badge-primary" style={{ marginBottom: '10px' }}>
-                {selectedJob.employmentType || 'Full-Time'}
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div>
+                <span className="badge badge-purple" style={{ marginBottom: '8px' }}>
+                  {selectedJob.employmentType?.replace('_', ' ') || 'FULL TIME'}
+                </span>
+                <h2 style={{ fontSize: '1.45rem', fontWeight: 800, color: '#ffffff', marginBottom: '4px' }}>
+                  {selectedJob.title}
+                </h2>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                  {selectedJob.company?.name} • {selectedJob.location?.name || 'Remote'}
+                </div>
               </div>
-              <h2 style={{ fontSize: '1.75rem', marginBottom: '6px' }}>{selectedJob.title}</h2>
-              <div style={{ color: '#3b82f6', fontWeight: 600, fontSize: '1rem', marginBottom: '16px' }}>
-                {selectedJob.company?.name || selectedJob.companyName || 'Verified Partner'}
-              </div>
+              <button
+                onClick={() => setSelectedJob(null)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={22} />
+              </button>
             </div>
 
-            {/* AI Fit Score Details Section */}
-            {matchDetail && (
-              <div style={{
-                background: 'rgba(19, 28, 49, 0.9)',
-                border: '1px solid var(--border-glow)',
-                borderRadius: '12px',
-                padding: '20px',
-                marginBottom: '24px',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#f8fafc' }}>
-                    <Sparkles size={18} color="#818cf8" />
-                    <span>AI Profile Fit Analysis</span>
-                  </div>
-                  <FitScoreBadge score={matchDetail.overallScore} fitLevel={matchDetail.fitLevel} />
+            {/* AI Multi-factor Compatibility Breakdown Section */}
+            {isAuthenticated && isCandidate && (
+              <div
+                style={{
+                  padding: '20px',
+                  borderRadius: '12px',
+                  background: 'rgba(59, 130, 246, 0.06)',
+                  border: '1px solid rgba(59, 130, 246, 0.25)',
+                  marginBottom: '24px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                  <Sparkles size={20} color="var(--primary-glow)" />
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f8fafc' }}>
+                    AI Compatibility Match Engine
+                  </h3>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', textAlign: 'center', margin: '14px 0' }}>
-                  <div style={{ padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Skills Match</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#60a5fa' }}>{matchDetail.skillScore}%</div>
+                {matchLoading ? (
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Calculating 3-dimensional candidate-job fit breakdown...
                   </div>
-                  <div style={{ padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Experience</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#34d399' }}>{matchDetail.experienceScore}%</div>
-                  </div>
-                  <div style={{ padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Profile Quality</div>
-                    <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#a78bfa' }}>{matchDetail.profileCompletenessScore}%</div>
-                  </div>
-                </div>
+                ) : matchDetail ? (
+                  <div>
+                    {/* Overall score gauge */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                      <div style={{
+                        fontSize: '2.25rem',
+                        fontWeight: 800,
+                        color: matchDetail.matchScore >= 80 ? '#10b981' : matchDetail.matchScore >= 60 ? '#3b82f6' : '#f59e0b',
+                      }}>
+                        {matchDetail.matchScore}%
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#f8fafc' }}>
+                          Compatibility Fit Rating
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                          Multi-factor: 60% skills alignment • 25% experience depth • 15% profile completeness
+                        </div>
+                      </div>
+                    </div>
 
-                {matchDetail.recommendationReasons?.length > 0 && (
-                  <div style={{ marginTop: '12px', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    <div style={{ fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>Key Insights:</div>
-                    <ul style={{ paddingLeft: '18px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                      {matchDetail.recommendationReasons.map((r, i) => (
-                        <li key={i}>{r}</li>
-                      ))}
-                    </ul>
+                    {/* Breakdown bars */}
+                    {matchDetail.breakdown && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
+                        <div style={{ padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Skills Match (60%)</div>
+                          <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#93c5fd' }}>
+                            {matchDetail.breakdown.skillMatchScore}%
+                          </div>
+                        </div>
+                        <div style={{ padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Experience (25%)</div>
+                          <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#a78bfa' }}>
+                            {matchDetail.breakdown.experienceScore}%
+                          </div>
+                        </div>
+                        <div style={{ padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Completeness (15%)</div>
+                          <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#34d399' }}>
+                            {matchDetail.breakdown.profileCompletenessScore}%
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Matched vs Missing Skills */}
+                    {matchDetail.breakdown && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {matchDetail.breakdown.matchedSkills && matchDetail.breakdown.matchedSkills.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#10b981' }}>Matched:</span>
+                            {matchDetail.breakdown.matchedSkills.map((s, idx) => (
+                              <span key={idx} className="badge badge-success" style={{ fontSize: '0.7rem' }}>
+                                <Check size={11} /> {s}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {matchDetail.breakdown.missingSkills && matchDetail.breakdown.missingSkills.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f59e0b' }}>To Learn:</span>
+                            {matchDetail.breakdown.missingSkills.map((s, idx) => (
+                              <span key={idx} className="badge badge-warning" style={{ fontSize: '0.7rem' }}>
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                    Match breakdown unavailable for this role.
                   </div>
                 )}
               </div>
             )}
 
-            {/* Description */}
+            {/* Role Details */}
             <div style={{ marginBottom: '24px' }}>
-              <h4 style={{ fontSize: '1rem', marginBottom: '8px', color: '#f8fafc' }}>About The Role</h4>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.7, whiteSpace: 'pre-line' }}>
+              <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '8px', color: '#f8fafc' }}>
+                About the Role
+              </h4>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>
                 {selectedJob.description}
               </p>
             </div>
 
-            {/* Skills Requirement */}
-            <div style={{ marginBottom: '28px' }}>
-              <h4 style={{ fontSize: '1rem', marginBottom: '10px', color: '#f8fafc' }}>Required Skills</h4>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {(selectedJob.skills || selectedJob.requiredSkills || []).map((s, idx) => (
-                  <span key={idx} className="badge badge-primary">
-                    {s.name || s}
-                  </span>
-                ))}
+            {/* Required Skills */}
+            {selectedJob.skills && selectedJob.skills.length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '10px', color: '#f8fafc' }}>
+                  Target Technical Stack
+                </h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {selectedJob.skills.map((s, idx) => (
+                    <span key={idx} className="badge badge-primary">
+                      {s.skillName || s.name || s}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Modal Actions */}
-            <div style={{ display: 'flex', gap: '12px', borderTop: '1px solid var(--border-subtle)', paddingTop: '20px' }}>
-              {isAuthenticated && isCandidate ? (
+            {/* Modal Bottom Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
+              <button onClick={() => setSelectedJob(null)} className="btn btn-secondary">
+                Close
+              </button>
+              {isAuthenticated && isCandidate && (
                 <button
-                  type="button"
                   onClick={() => {
                     setApplyingJob(selectedJob);
                     setSelectedJob(null);
                   }}
                   className="btn btn-primary"
-                  style={{ flex: 1, padding: '12px' }}
                 >
-                  Apply Now with Profile <Send size={16} />
+                  Apply for this Position
                 </button>
-              ) : (
-                <a href="/login" className="btn btn-primary" style={{ flex: 1, padding: '12px' }}>
-                  Sign in to Apply
-                </a>
               )}
-              <button
-                type="button"
-                onClick={() => setSelectedJob(null)}
-                className="btn btn-secondary"
-                style={{ padding: '12px 20px' }}
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Quick Application Modal */}
+      {/* Apply Submission Modal */}
       {applyingJob && (
         <div style={{
           position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
+          inset: 0,
+          background: 'rgba(0,0,0,0.75)',
           backdropFilter: 'blur(8px)',
           display: 'flex',
           alignItems: 'center',
@@ -476,80 +565,89 @@ export const JobsPage = () => {
           zIndex: 110,
           padding: '20px',
         }}>
-          <div className="glass-panel animate-fade-in" style={{
-            maxWidth: '520px',
-            width: '100%',
-            padding: '32px',
-            background: '#0f172a',
-          }}>
-            <h3 style={{ fontSize: '1.4rem', marginBottom: '6px' }}>
-              Apply to {applyingJob.title}
-            </h3>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '20px' }}>
-              Your verified candidate profile and parsed resume will be submitted to {applyingJob.company?.name || 'the recruiter'}.
-            </p>
-
-            {applySuccess && (
-              <div style={{
-                padding: '12px 14px',
-                borderRadius: '8px',
-                background: 'rgba(16, 185, 129, 0.15)',
-                color: '#6ee7b7',
-                fontSize: '0.875rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                marginBottom: '16px',
-              }}>
-                <CheckCircle size={18} />
-                <span>Application submitted successfully! You can track it in Applications.</span>
+          <div className="card animate-fade-in" style={{ maxWidth: '520px', width: '100%', padding: '28px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc' }}>
+                  Apply to {applyingJob.title}
+                </h3>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  {applyingJob.company?.name}
+                </div>
               </div>
+              <button
+                onClick={() => setApplyingJob(null)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {applySuccess ? (
+              <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                <CheckCircle size={48} color="#10b981" style={{ margin: '0 auto 12px auto' }} />
+                <h4 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#ffffff' }}>Application Submitted!</h4>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                  The hiring team has received your application and resume.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleApplySubmit}>
+                {applyError && (
+                  <div style={{
+                    padding: '12px',
+                    borderRadius: '8px',
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#f87171',
+                    fontSize: '0.85rem',
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}>
+                    <AlertCircle size={16} /> {applyError}
+                  </div>
+                )}
+
+                <div style={{ marginBottom: '16px' }}>
+                  <label className="form-label">Cover Note / Candidate Message</label>
+                  <textarea
+                    className="form-input"
+                    rows="4"
+                    placeholder="Highlight your relevant experience, architectural strengths, and motivation for this role..."
+                    value={coverNote}
+                    onChange={(e) => setCoverNote(e.target.value)}
+                  />
+                </div>
+
+                <div style={{
+                  padding: '12px 14px',
+                  borderRadius: '8px',
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid var(--border-subtle)',
+                  marginBottom: '20px',
+                  fontSize: '0.8rem',
+                  color: 'var(--text-secondary)',
+                }}>
+                  Your verified candidate profile and uploaded PDF resume will be automatically attached with this application.
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button type="button" onClick={() => setApplyingJob(null)} className="btn btn-secondary">
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={applyMutation.isPending}
+                    className="btn btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <Send size={15} /> {applyMutation.isPending ? 'Submitting...' : 'Submit Application'}
+                  </button>
+                </div>
+              </form>
             )}
-
-            {applyError && (
-              <div style={{
-                padding: '12px 14px',
-                borderRadius: '8px',
-                background: 'rgba(244, 63, 94, 0.15)',
-                color: '#fda4af',
-                fontSize: '0.875rem',
-                marginBottom: '16px',
-              }}>
-                {applyError}
-              </div>
-            )}
-
-            <form onSubmit={handleApply}>
-              <div className="form-group">
-                <label className="form-label">Optional Cover Note / Message to Recruiter</label>
-                <textarea
-                  className="form-textarea"
-                  rows={4}
-                  placeholder="Introduce yourself and explain why you're a great fit for this position..."
-                  value={coverNote}
-                  onChange={(e) => setCoverNote(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                <button
-                  type="submit"
-                  disabled={applyLoading || applySuccess}
-                  className="btn btn-primary"
-                  style={{ flex: 1, padding: '12px' }}
-                >
-                  {applyLoading ? 'Submitting Application...' : 'Confirm Application'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setApplyingJob(null)}
-                  className="btn btn-secondary"
-                  style={{ padding: '12px 20px' }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

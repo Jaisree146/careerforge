@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { applicationApi } from '../services/api';
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useCandidateApplications } from '../hooks/useQueries';
 import { 
   Briefcase, 
   Clock, 
@@ -9,28 +10,22 @@ import {
   Clock3, 
   Calendar, 
   XCircle,
-  Award
+  Award,
+  FileText,
+  MessageSquare
 } from 'lucide-react';
 
 export const ApplicationsPage = () => {
-  const [applications, setApplications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { isAuthenticated, isCandidate } = useAuth();
+  const [selectedStatus, setSelectedStatus] = useState('');
 
-  useEffect(() => {
-    fetchApplications();
-  }, []);
+  // TanStack Query
+  const { data, isLoading } = useCandidateApplications(
+    { status: selectedStatus || undefined },
+    isAuthenticated && isCandidate
+  );
 
-  const fetchApplications = async () => {
-    setLoading(true);
-    try {
-      const data = await applicationApi.getMyApplications();
-      setApplications(Array.isArray(data) ? data : (data?.content || []));
-    } catch (err) {
-      console.error('Failed to load applications', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const applications = data?.content || (Array.isArray(data) ? data : []);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -52,108 +47,144 @@ export const ApplicationsPage = () => {
     }
   };
 
+  const statusFilters = [
+    { label: 'All Applications', value: '' },
+    { label: 'Submitted', value: 'SUBMITTED' },
+    { label: 'In Review', value: 'UNDER_REVIEW' },
+    { label: 'Shortlisted', value: 'SHORTLISTED' },
+    { label: 'Interviewing', value: 'INTERVIEW_SCHEDULED' },
+    { label: 'Offered', value: 'OFFER_EXTENDED' },
+    { label: 'Rejected', value: 'REJECTED' },
+  ];
+
+  if (!isAuthenticated) {
+    return (
+      <div className="container" style={{ padding: '80px 1.5rem', textAlign: 'center' }}>
+        <h2 style={{ fontSize: '1.75rem', marginBottom: '12px' }}>Authentication Required</h2>
+        <p style={{ color: 'var(--text-secondary)' }}>Please log in to track your job applications.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="container animate-fade-in" style={{ padding: '40px 1.5rem 80px 1.5rem' }}>
+      {/* Header */}
       <div style={{ marginBottom: '32px' }}>
         <h1 style={{ fontSize: '2.25rem', marginBottom: '8px' }}>
           My <span className="text-gradient">Job Applications</span>
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem' }}>
-          Track real-time candidate status updates, interview schedules, and recruiter notes
+          Live applicant pipeline tracking with stage changes and recruiter review feedback.
         </p>
+
+        {/* Status Filter Tabs */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '20px' }}>
+          {statusFilters.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setSelectedStatus(tab.value)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '20px',
+                border: '1px solid',
+                borderColor: selectedStatus === tab.value ? 'var(--primary-glow)' : 'var(--border-subtle)',
+                background: selectedStatus === tab.value ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255, 255, 255, 0.02)',
+                color: selectedStatus === tab.value ? '#93c5fd' : 'var(--text-secondary)',
+                fontSize: '0.8rem',
+                cursor: 'pointer',
+                fontWeight: selectedStatus === tab.value ? 600 : 400,
+                transition: 'var(--transition-fast)',
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-secondary)' }}>
-          Loading your applications...
+      {/* Applications List */}
+      {isLoading ? (
+        <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
+          Loading your application pipeline...
         </div>
       ) : applications.length === 0 ? (
-        <div className="glass-panel" style={{ textAlign: 'center', padding: '60px', color: 'var(--text-secondary)' }}>
-          <Briefcase size={40} style={{ margin: '0 auto 12px auto', opacity: 0.5 }} />
-          <h3>No applications submitted yet</h3>
-          <p style={{ fontSize: '0.875rem', marginTop: '6px' }}>
-            Browse through active openings and apply with your verified profile.
+        <div className="card" style={{ padding: '60px 20px', textAlign: 'center' }}>
+          <Briefcase size={44} color="var(--text-muted)" style={{ margin: '0 auto 16px auto' }} />
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>No applications in this category</h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '20px' }}>
+            Explore open opportunities and submit your profile to get started.
           </p>
-          <a href="/jobs" className="btn btn-primary" style={{ marginTop: '20px', display: 'inline-flex' }}>
-            Explore Jobs
+          <a href="/jobs" className="btn btn-primary" style={{ display: 'inline-flex' }}>
+            Browse Open Jobs
           </a>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {applications.map((app) => {
-            const job = app.job || {};
-            const created = app.appliedAt || app.createdAt;
-            const formattedDate = created ? new Date(created).toLocaleDateString(undefined, {
-              year: 'numeric',
-              month: 'short',
-              day: 'numeric',
-            }) : 'Recently';
-
-            return (
-              <div
-                key={app.id}
-                className="glass-panel"
-                style={{
-                  padding: '24px',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '20px',
-                }}
-              >
+          {applications.map((app) => (
+            <div
+              key={app.id}
+              className="card"
+              style={{
+                padding: '24px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '16px',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '6px' }}>
-                    <h3 style={{ fontSize: '1.25rem', color: '#f8fafc' }}>
-                      {job.title || app.jobTitle || 'Software Engineer'}
-                    </h3>
-                    {getStatusBadge(app.status)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                    <Building size={16} color="var(--text-muted)" />
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                      {app.job?.company?.name || 'Hiring Company'}
+                    </span>
                   </div>
-
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#3b82f6', fontWeight: 500 }}>
-                      <Building size={15} />
-                      <span>{job.company?.name || job.companyName || 'Partner Company'}</span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <MapPin size={15} />
-                      <span>{job.location?.city || job.locationName || 'Remote'}</span>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Clock size={15} />
-                      <span>Applied on {formattedDate}</span>
-                    </div>
-                  </div>
-
-                  {app.reviewNotes && (
-                    <div style={{
-                      marginTop: '12px',
-                      padding: '8px 12px',
-                      borderRadius: '6px',
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      borderLeft: '3px solid #3b82f6',
-                      fontSize: '0.825rem',
-                      color: '#cbd5e1',
-                    }}>
-                      <span style={{ fontWeight: 600, color: '#f8fafc' }}>Recruiter Feedback: </span>
-                      {app.reviewNotes}
-                    </div>
-                  )}
+                  <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                    {app.job?.title || 'Applied Position'}
+                  </h3>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <a
-                    href={`/jobs`}
-                    className="btn btn-secondary btn-sm"
-                  >
-                    View Job Details
-                  </a>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {getStatusBadge(app.status)}
                 </div>
               </div>
-            );
-          })}
+
+              {/* Cover Note & Feedback */}
+              {app.notes && (
+                <div style={{
+                  padding: '12px 14px',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.02)',
+                  border: '1px solid var(--border-subtle)',
+                  fontSize: '0.85rem',
+                  color: 'var(--text-secondary)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '8px',
+                }}>
+                  <MessageSquare size={16} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <span style={{ fontWeight: 600, color: '#f8fafc' }}>Candidate Note: </span>
+                    {app.notes}
+                  </div>
+                </div>
+              )}
+
+              {/* Meta details */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingTop: '12px',
+                borderTop: '1px solid var(--border-subtle)',
+                fontSize: '0.8rem',
+                color: 'var(--text-muted)',
+              }}>
+                <div>Applied on {new Date(app.appliedAt || app.createdAt).toLocaleDateString()}</div>
+                <div>Application Reference #{app.id}</div>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
