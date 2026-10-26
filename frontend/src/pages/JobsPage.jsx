@@ -2,9 +2,13 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   useJobs,
+  useRecommendedJobs,
   useSavedJobs,
+  useCandidateApplications,
+  useCandidateProfile,
   useApplyJobMutation,
   useToggleSaveJobMutation,
+  useUploadResumeMutation,
 } from '../hooks/useQueries';
 import { matchingApi } from '../services/api';
 import { FitScoreBadge } from '../components/common/FitScoreBadge';
@@ -13,37 +17,51 @@ import {
   MapPin, 
   Briefcase, 
   DollarSign, 
-  Calendar, 
   Bookmark, 
   BookmarkCheck, 
   Sparkles, 
   CheckCircle, 
+  CheckCircle2,
   X, 
   Send,
   Building,
   Check,
-  AlertCircle
+  AlertCircle,
+  UploadCloud,
+  FileText,
+  Flame,
+  Globe
 } from 'lucide-react';
 
 export const JobsPage = () => {
   const { isAuthenticated, isCandidate } = useAuth();
+
+  // View Mode: 'recommended' (AI Match Feed) or 'all' (Standard Catalog)
+  const [viewMode, setViewMode] = useState(isAuthenticated && isCandidate ? 'recommended' : 'all');
 
   // Search & Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
   const [selectedType, setSelectedType] = useState('');
 
-  // TanStack Queries
-  const { data: jobsData, isLoading: jobsLoading } = useJobs({
+  // Queries
+  const { data: allJobsData, isLoading: allJobsLoading } = useJobs({
     search: activeSearch || undefined,
     employmentType: selectedType || undefined,
   });
 
+  const { data: recommendedData, isLoading: recLoading } = useRecommendedJobs(
+    isAuthenticated && isCandidate
+  );
+
   const { data: savedJobsData } = useSavedJobs({}, isAuthenticated && isCandidate);
+  const { data: applicationsData } = useCandidateApplications({}, isAuthenticated && isCandidate);
+  const { data: candidateProfile } = useCandidateProfile(isAuthenticated && isCandidate);
 
   // Mutations
   const applyMutation = useApplyJobMutation();
   const toggleSaveMutation = useToggleSaveJobMutation();
+  const uploadResumeMutation = useUploadResumeMutation();
 
   // Selected Job & AI Breakdown Modal State
   const [selectedJob, setSelectedJob] = useState(null);
@@ -53,19 +71,54 @@ export const JobsPage = () => {
   // Apply Modal State
   const [applyingJob, setApplyingJob] = useState(null);
   const [coverNote, setCoverNote] = useState('');
+  const [inlineResumeFile, setInlineResumeFile] = useState(null);
   const [applySuccess, setApplySuccess] = useState(false);
   const [applyError, setApplyError] = useState(null);
 
-  // Normalize jobs list
-  const jobList = jobsData?.content || (Array.isArray(jobsData) ? jobsData : []);
+  // Normalize Data
+  const allJobsList = allJobsData?.content || (Array.isArray(allJobsData) ? allJobsData : []);
+  const recommendedList = Array.isArray(recommendedData) ? recommendedData : (recommendedData?.content || []);
 
-  // Saved job IDs set
+  // Map of job ID to recommendation match object
+  const recMap = new Map();
+  recommendedList.forEach((r) => {
+    recMap.set(r.jobId || r.id, r.match);
+  });
+
+  // Current Display List
+  const displayedJobs = viewMode === 'recommended' && isAuthenticated && isCandidate
+    ? recommendedList.map((r) => ({
+        id: r.jobId,
+        title: r.title,
+        company: { name: r.companyName },
+        location: { name: r.locationName },
+        salary: r.salary,
+        employmentType: r.employmentType,
+        match: r.match,
+        description: r.description || 'Open position with high AI compatibility fit for your profile and skills.',
+        skills: r.match?.skillBreakdown?.matchedSkills?.map(s => ({ skillName: s })) || [],
+      }))
+    : allJobsList.map((j) => ({
+        ...j,
+        match: j.match || recMap.get(j.id) || null,
+      }));
+
+  // Saved Jobs Set
   const savedList = savedJobsData?.content || (Array.isArray(savedJobsData) ? savedJobsData : []);
   const savedJobIds = new Set(savedList.map((item) => item.job?.id || item.jobId));
+
+  // Applied Jobs Map (jobId -> application status)
+  const appList = applicationsData?.content || (Array.isArray(applicationsData) ? applicationsData : []);
+  const appliedJobMap = new Map();
+  appList.forEach((app) => {
+    const jId = app.job?.id || app.jobId;
+    if (jId) appliedJobMap.set(jId, app.status);
+  });
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     setActiveSearch(searchTerm);
+    setViewMode('all');
   };
 
   const handleToggleSave = async (e, jobId) => {
@@ -77,7 +130,7 @@ export const JobsPage = () => {
 
   const handleOpenDetailModal = async (job) => {
     setSelectedJob(job);
-    setMatchDetail(null);
+    setMatchDetail(job.match ? { match: job.match } : null);
 
     if (isAuthenticated && isCandidate) {
       setMatchLoading(true);
@@ -98,18 +151,28 @@ export const JobsPage = () => {
 
     setApplyError(null);
     try {
+      // If candidate has no resume and uploaded an inline file in the modal, upload it first
+      if (!candidateProfile?.resume?.fileUrl && inlineResumeFile) {
+        await uploadResumeMutation.mutateAsync({
+          file: inlineResumeFile,
+          analyzeWithAi: false,
+        });
+      }
+
       await applyMutation.mutateAsync({
         jobId: applyingJob.id,
         notes: coverNote,
       });
+
       setApplySuccess(true);
       setTimeout(() => {
         setApplySuccess(false);
         setApplyingJob(null);
         setCoverNote('');
+        setInlineResumeFile(null);
       }, 1800);
     } catch (err) {
-      setApplyError(err.message || 'Application failed. You might have already applied.');
+      setApplyError(err.message || 'Application failed. Please verify your resume is uploaded.');
     }
   };
 
@@ -121,9 +184,11 @@ export const JobsPage = () => {
     { label: 'Remote', value: 'REMOTE' },
   ];
 
+  const isLoading = viewMode === 'recommended' ? recLoading : allJobsLoading;
+
   return (
     <div className="container animate-fade-in" style={{ padding: '40px 1.5rem 80px 1.5rem' }}>
-      {/* Header & Search */}
+      {/* Header & Tabs */}
       <div style={{ marginBottom: '32px' }}>
         <h1 style={{ fontSize: '2.25rem', marginBottom: '8px' }}>
           Explore <span className="text-gradient">Career Opportunities</span>
@@ -132,8 +197,60 @@ export const JobsPage = () => {
           Discover verified roles scored by our multi-dimensional AI matching engine.
         </p>
 
-        {/* Search Bar & Type Filters */}
-        <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {/* AI Recommendation vs All Opportunities Tab Bar */}
+        {isAuthenticated && isCandidate && (
+          <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+            <button
+              onClick={() => setViewMode('recommended')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                borderRadius: '10px',
+                border: '1px solid',
+                borderColor: viewMode === 'recommended' ? 'var(--primary-glow)' : 'var(--border-subtle)',
+                background: viewMode === 'recommended' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.02)',
+                color: viewMode === 'recommended' ? '#93c5fd' : 'var(--text-secondary)',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                transition: 'var(--transition-fast)',
+              }}
+            >
+              <Flame size={18} color={viewMode === 'recommended' ? '#f59e0b' : 'var(--text-muted)'} />
+              AI Recommended For You
+              <span className="badge badge-primary" style={{ fontSize: '0.7rem' }}>
+                {recommendedList.length} Top Matches
+              </span>
+            </button>
+
+            <button
+              onClick={() => setViewMode('all')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                borderRadius: '10px',
+                border: '1px solid',
+                borderColor: viewMode === 'all' ? 'var(--primary-glow)' : 'var(--border-subtle)',
+                background: viewMode === 'all' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255, 255, 255, 0.02)',
+                color: viewMode === 'all' ? '#93c5fd' : 'var(--text-secondary)',
+                fontWeight: 600,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                transition: 'var(--transition-fast)',
+              }}
+            >
+              <Globe size={18} color={viewMode === 'all' ? 'var(--primary-glow)' : 'var(--text-muted)'} />
+              All Published Roles ({allJobsList.length})
+            </button>
+          </div>
+        )}
+
+        {/* Search Bar & Filters */}
+        <div style={{ marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <form onSubmit={handleSearchSubmit} style={{ display: 'flex', gap: '10px' }}>
             <div style={{ position: 'relative', flex: 1 }}>
               <Search
@@ -150,7 +267,7 @@ export const JobsPage = () => {
                 type="text"
                 className="form-input"
                 style={{ paddingLeft: '44px' }}
-                placeholder="Search by job title, technology stack, architecture..."
+                placeholder="Search by title, technology stack, architecture..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -165,7 +282,10 @@ export const JobsPage = () => {
             {employmentTypes.map((type) => (
               <button
                 key={type.value}
-                onClick={() => setSelectedType(type.value)}
+                onClick={() => {
+                  setSelectedType(type.value);
+                  setViewMode('all');
+                }}
                 style={{
                   padding: '6px 14px',
                   borderRadius: '20px',
@@ -187,22 +307,33 @@ export const JobsPage = () => {
       </div>
 
       {/* Jobs Grid */}
-      {jobsLoading ? (
+      {isLoading ? (
         <div style={{ textAlign: 'center', padding: '80px 0', color: 'var(--text-muted)' }}>
-          Loading live opportunities...
+          Calculating AI matches and loading job opportunities...
         </div>
-      ) : jobList.length === 0 ? (
+      ) : displayedJobs.length === 0 ? (
         <div className="card" style={{ padding: '60px 20px', textAlign: 'center' }}>
           <Briefcase size={48} color="var(--text-muted)" style={{ margin: '0 auto 16px auto' }} />
-          <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>No matching job postings found</h3>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Try broadening your search query or removing filters.
+          <h3 style={{ fontSize: '1.25rem', marginBottom: '8px' }}>
+            {viewMode === 'recommended' ? 'No AI recommended jobs found yet' : 'No matching jobs found'}
+          </h3>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px' }}>
+            {viewMode === 'recommended'
+              ? 'Update your skills and verified experience in your profile to boost your AI match recommendations.'
+              : 'Try broadening your search query or selecting a different employment type.'}
           </p>
+          {viewMode === 'recommended' && (
+            <button onClick={() => setViewMode('all')} className="btn btn-secondary">
+              Browse All Opportunities
+            </button>
+          )}
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: '24px' }}>
-          {jobList.map((job) => {
+          {displayedJobs.map((job) => {
             const isSaved = savedJobIds.has(job.id);
+            const appliedStatus = appliedJobMap.get(job.id);
+            const isApplied = !!appliedStatus;
 
             return (
               <div
@@ -215,16 +346,17 @@ export const JobsPage = () => {
                   padding: '24px',
                   cursor: 'pointer',
                   position: 'relative',
+                  border: job.match?.overallScore >= 80 ? '1px solid rgba(16, 185, 129, 0.4)' : undefined,
                 }}
                 onClick={() => handleOpenDetailModal(job)}
               >
                 <div>
-                  {/* Top Header: Company & Bookmark */}
+                  {/* Top Header: Company, AI Match Badge & Bookmark */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <div style={{
-                        width: '36px',
-                        height: '36px',
+                        width: '38px',
+                        height: '38px',
                         borderRadius: '8px',
                         background: 'rgba(59, 130, 246, 0.12)',
                         border: '1px solid rgba(59, 130, 246, 0.25)',
@@ -244,21 +376,32 @@ export const JobsPage = () => {
                       </div>
                     </div>
 
-                    {isAuthenticated && isCandidate && (
-                      <button
-                        onClick={(e) => handleToggleSave(e, job.id)}
-                        disabled={toggleSaveMutation.isPending}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: isSaved ? '#3b82f6' : 'var(--text-muted)',
-                          cursor: 'pointer',
-                          padding: '4px',
-                        }}
-                      >
-                        {isSaved ? <BookmarkCheck size={20} /> : <Bookmark size={20} />}
-                      </button>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {/* AI Compatibility Score Badge */}
+                      {isAuthenticated && isCandidate && job.match && (
+                        <FitScoreBadge
+                          score={job.match.overallScore}
+                          fitLevel={job.match.fitLevel}
+                          size="sm"
+                        />
+                      )}
+
+                      {isAuthenticated && isCandidate && (
+                        <button
+                          onClick={(e) => handleToggleSave(e, job.id)}
+                          disabled={toggleSaveMutation.isPending}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: isSaved ? '#3b82f6' : 'var(--text-muted)',
+                            cursor: 'pointer',
+                            padding: '4px',
+                          }}
+                        >
+                          {isSaved ? <BookmarkCheck size={20} /> : <Bookmark size={20} />}
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Title */}
@@ -267,15 +410,10 @@ export const JobsPage = () => {
                   </h3>
 
                   {/* Badges: Salary, Experience, Type */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '14px' }}>
                     {job.salary && (
                       <span className="badge badge-success" style={{ fontSize: '0.75rem' }}>
                         <DollarSign size={12} /> {job.salary}
-                      </span>
-                    )}
-                    {job.experience && (
-                      <span className="badge badge-primary" style={{ fontSize: '0.75rem' }}>
-                        <Briefcase size={12} /> {job.experience}
                       </span>
                     )}
                     {job.employmentType && (
@@ -334,23 +472,51 @@ export const JobsPage = () => {
                   alignItems: 'center',
                   justifyContent: 'space-between',
                 }}>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Posted {new Date(job.createdAt).toLocaleDateString()}
-                  </div>
+                  {/* AI Breakdown Link */}
+                  {isAuthenticated && isCandidate ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDetailModal(job);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#93c5fd',
+                        fontSize: '0.8rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: 0,
+                      }}
+                    >
+                      <Sparkles size={14} color="#60a5fa" /> View AI Match
+                    </button>
+                  ) : (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Verified Posting</span>
+                  )}
 
                   <div style={{ display: 'flex', gap: '8px' }}>
                     {isAuthenticated && isCandidate && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setApplyingJob(job);
-                        }}
-                        className="btn btn-primary"
-                        style={{ padding: '6px 14px', fontSize: '0.8rem' }}
-                      >
-                        Apply Now
-                      </button>
+                      isApplied ? (
+                        <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '6px 12px' }}>
+                          <CheckCircle2 size={13} /> Applied ({appliedStatus})
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setApplyingJob(job);
+                          }}
+                          className="btn btn-primary"
+                          style={{ padding: '6px 16px', fontSize: '0.8rem' }}
+                        >
+                          Apply Now
+                        </button>
+                      )
                     )}
                   </div>
                 </div>
@@ -404,7 +570,7 @@ export const JobsPage = () => {
               </button>
             </div>
 
-            {/* AI Multi-factor Compatibility Breakdown Section */}
+            {/* Deep AI Multi-Factor Compatibility Breakdown Section */}
             {isAuthenticated && isCandidate && (
               <div
                 style={{
@@ -415,80 +581,87 @@ export const JobsPage = () => {
                   marginBottom: '24px',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                  <Sparkles size={20} color="var(--primary-glow)" />
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f8fafc' }}>
-                    AI Compatibility Match Engine
-                  </h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Sparkles size={20} color="var(--primary-glow)" />
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#f8fafc', margin: 0 }}>
+                      AI Compatibility Match Engine
+                    </h3>
+                  </div>
+
+                  {matchDetail?.match && (
+                    <FitScoreBadge
+                      score={matchDetail.match.overallScore}
+                      fitLevel={matchDetail.match.fitLevel}
+                      size="md"
+                    />
+                  )}
                 </div>
 
                 {matchLoading ? (
                   <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                    Calculating 3-dimensional candidate-job fit breakdown...
+                    Calculating 3-dimensional compatibility fit breakdown...
                   </div>
-                ) : matchDetail ? (
+                ) : matchDetail?.match ? (
                   <div>
-                    {/* Overall score gauge */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-                      <div style={{
-                        fontSize: '2.25rem',
-                        fontWeight: 800,
-                        color: matchDetail.matchScore >= 80 ? '#10b981' : matchDetail.matchScore >= 60 ? '#3b82f6' : '#f59e0b',
-                      }}>
-                        {matchDetail.matchScore}%
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#f8fafc' }}>
-                          Compatibility Fit Rating
+                    {/* Multi-factor Score Gauges */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
+                      <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                          Skills Match (60%)
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                          Multi-factor: 60% skills alignment • 25% experience depth • 15% profile completeness
+                        <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#93c5fd', marginTop: '2px' }}>
+                          {Math.round(matchDetail.match.skillScore)}%
+                        </div>
+                      </div>
+                      <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                          Experience (25%)
+                        </div>
+                        <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#a78bfa', marginTop: '2px' }}>
+                          {Math.round(matchDetail.match.experienceScore)}%
+                        </div>
+                      </div>
+                      <div style={{ padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', textAlign: 'center' }}>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                          Profile Fit (15%)
+                        </div>
+                        <div style={{ fontSize: '1.35rem', fontWeight: 800, color: '#34d399', marginTop: '2px' }}>
+                          {Math.round(matchDetail.match.profileCompletenessScore)}%
                         </div>
                       </div>
                     </div>
 
-                    {/* Breakdown bars */}
-                    {matchDetail.breakdown && (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
-                        <div style={{ padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Skills Match (60%)</div>
-                          <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#93c5fd' }}>
-                            {matchDetail.breakdown.skillMatchScore}%
-                          </div>
-                        </div>
-                        <div style={{ padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Experience (25%)</div>
-                          <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#a78bfa' }}>
-                            {matchDetail.breakdown.experienceScore}%
-                          </div>
-                        </div>
-                        <div style={{ padding: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', textAlign: 'center' }}>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Completeness (15%)</div>
-                          <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#34d399' }}>
-                            {matchDetail.breakdown.profileCompletenessScore}%
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
                     {/* Matched vs Missing Skills */}
-                    {matchDetail.breakdown && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {matchDetail.breakdown.matchedSkills && matchDetail.breakdown.matchedSkills.length > 0 && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#10b981' }}>Matched:</span>
-                            {matchDetail.breakdown.matchedSkills.map((s, idx) => (
-                              <span key={idx} className="badge badge-success" style={{ fontSize: '0.7rem' }}>
-                                <Check size={11} /> {s}
+                    {matchDetail.match.skillBreakdown && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
+                        {matchDetail.match.skillBreakdown.matchedSkills?.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981' }}>✓ Matched Skills:</span>
+                            {matchDetail.match.skillBreakdown.matchedSkills.map((s, idx) => (
+                              <span key={idx} className="badge badge-success" style={{ fontSize: '0.75rem' }}>
+                                <Check size={12} /> {s}
                               </span>
                             ))}
                           </div>
                         )}
-                        {matchDetail.breakdown.missingSkills && matchDetail.breakdown.missingSkills.length > 0 && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f59e0b' }}>To Learn:</span>
-                            {matchDetail.breakdown.missingSkills.map((s, idx) => (
-                              <span key={idx} className="badge badge-warning" style={{ fontSize: '0.7rem' }}>
+
+                        {matchDetail.match.skillBreakdown.missingRequiredSkills?.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#f59e0b' }}>⚠️ Missing Required:</span>
+                            {matchDetail.match.skillBreakdown.missingRequiredSkills.map((s, idx) => (
+                              <span key={idx} className="badge badge-warning" style={{ fontSize: '0.75rem' }}>
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {matchDetail.match.skillBreakdown.missingOptionalSkills?.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)' }}>Optional:</span>
+                            {matchDetail.match.skillBreakdown.missingOptionalSkills.map((s, idx) => (
+                              <span key={idx} style={{ padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                                 {s}
                               </span>
                             ))}
@@ -496,10 +669,24 @@ export const JobsPage = () => {
                         )}
                       </div>
                     )}
+
+                    {/* AI Recommendation Insights */}
+                    {matchDetail.match.recommendationReasons?.length > 0 && (
+                      <div style={{ padding: '12px 14px', borderRadius: '8px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-subtle)' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#93c5fd', textTransform: 'uppercase', marginBottom: '6px' }}>
+                          AI Recommendation Rationale
+                        </div>
+                        <ul style={{ margin: 0, paddingLeft: '18px', fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
+                          {matchDetail.match.recommendationReasons.map((reason, idx) => (
+                            <li key={idx} style={{ marginBottom: '3px' }}>{reason}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                    Match breakdown unavailable for this role.
+                    Match breakdown calculation unavailable.
                   </div>
                 )}
               </div>
@@ -515,44 +702,34 @@ export const JobsPage = () => {
               </p>
             </div>
 
-            {/* Required Skills */}
-            {selectedJob.skills && selectedJob.skills.length > 0 && (
-              <div style={{ marginBottom: '24px' }}>
-                <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '10px', color: '#f8fafc' }}>
-                  Target Technical Stack
-                </h4>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                  {selectedJob.skills.map((s, idx) => (
-                    <span key={idx} className="badge badge-primary">
-                      {s.skillName || s.name || s}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Modal Bottom Actions */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '24px' }}>
               <button onClick={() => setSelectedJob(null)} className="btn btn-secondary">
                 Close
               </button>
               {isAuthenticated && isCandidate && (
-                <button
-                  onClick={() => {
-                    setApplyingJob(selectedJob);
-                    setSelectedJob(null);
-                  }}
-                  className="btn btn-primary"
-                >
-                  Apply for this Position
-                </button>
+                appliedJobMap.has(selectedJob.id) ? (
+                  <span className="badge badge-success" style={{ padding: '8px 16px', fontSize: '0.85rem' }}>
+                    <CheckCircle2 size={16} /> Applied ({appliedJobMap.get(selectedJob.id)})
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setApplyingJob(selectedJob);
+                      setSelectedJob(null);
+                    }}
+                    className="btn btn-primary"
+                  >
+                    Apply for this Position
+                  </button>
+                )
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Apply Submission Modal */}
+      {/* Comprehensive Application Submission Modal */}
       {applyingJob && (
         <div style={{
           position: 'fixed',
@@ -565,7 +742,7 @@ export const JobsPage = () => {
           zIndex: 110,
           padding: '20px',
         }}>
-          <div className="card animate-fade-in" style={{ maxWidth: '520px', width: '100%', padding: '28px' }}>
+          <div className="card animate-fade-in" style={{ maxWidth: '540px', width: '100%', padding: '28px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8fafc' }}>
@@ -588,7 +765,7 @@ export const JobsPage = () => {
                 <CheckCircle size={48} color="#10b981" style={{ margin: '0 auto 12px auto' }} />
                 <h4 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#ffffff' }}>Application Submitted!</h4>
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                  The hiring team has received your application and resume.
+                  Your profile and verified resume have been delivered to the hiring team.
                 </p>
               </div>
             ) : (
@@ -610,27 +787,82 @@ export const JobsPage = () => {
                   </div>
                 )}
 
+                {/* Resume Status Check & Inline Uploader */}
+                <div style={{ marginBottom: '18px' }}>
+                  <label className="form-label">Resume Attachment *</label>
+
+                  {candidateProfile?.resume?.fileUrl ? (
+                    <div style={{
+                      padding: '12px 14px',
+                      borderRadius: '8px',
+                      background: 'rgba(16, 185, 129, 0.08)',
+                      border: '1px solid rgba(16, 185, 129, 0.25)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <FileText size={18} color="#10b981" />
+                        <div>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc' }}>
+                            Verified Resume On File
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: '#6ee7b7' }}>
+                            Ready to submit with application
+                          </div>
+                        </div>
+                      </div>
+                      <a
+                        href={candidateProfile.resume.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-secondary"
+                        style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                      >
+                        Preview
+                      </a>
+                    </div>
+                  ) : (
+                    /* Inline Resume Uploader if none is on file */
+                    <div style={{
+                      border: '2px dashed var(--border-medium)',
+                      borderRadius: '10px',
+                      padding: '20px',
+                      textAlign: 'center',
+                      background: 'rgba(255,255,255,0.01)',
+                      cursor: 'pointer',
+                    }}
+                    onClick={() => document.getElementById('apply-resume-input').click()}
+                    >
+                      <input
+                        id="apply-resume-input"
+                        type="file"
+                        accept=".pdf"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) setInlineResumeFile(e.target.files[0]);
+                        }}
+                      />
+                      <UploadCloud size={28} color="var(--primary-glow)" style={{ margin: '0 auto 8px auto' }} />
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc' }}>
+                        {inlineResumeFile ? inlineResumeFile.name : 'Upload PDF Resume (Required)'}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                        {inlineResumeFile ? `${(inlineResumeFile.size / 1024 / 1024).toFixed(2)} MB • Ready` : 'Click to select PDF document (max 5MB)'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div style={{ marginBottom: '16px' }}>
-                  <label className="form-label">Cover Note / Candidate Message</label>
+                  <label className="form-label">Cover Note / Candidate Pitch</label>
                   <textarea
                     className="form-input"
-                    rows="4"
-                    placeholder="Highlight your relevant experience, architectural strengths, and motivation for this role..."
+                    rows="3"
+                    placeholder="Briefly explain your relevant experience and why you are an ideal fit for this role..."
                     value={coverNote}
                     onChange={(e) => setCoverNote(e.target.value)}
                   />
-                </div>
-
-                <div style={{
-                  padding: '12px 14px',
-                  borderRadius: '8px',
-                  background: 'rgba(255,255,255,0.02)',
-                  border: '1px solid var(--border-subtle)',
-                  marginBottom: '20px',
-                  fontSize: '0.8rem',
-                  color: 'var(--text-secondary)',
-                }}>
-                  Your verified candidate profile and uploaded PDF resume will be automatically attached with this application.
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
@@ -639,7 +871,7 @@ export const JobsPage = () => {
                   </button>
                   <button
                     type="submit"
-                    disabled={applyMutation.isPending}
+                    disabled={applyMutation.isPending || (!candidateProfile?.resume?.fileUrl && !inlineResumeFile)}
                     className="btn btn-primary"
                     style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
                   >

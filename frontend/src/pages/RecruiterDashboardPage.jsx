@@ -12,6 +12,7 @@ import {
   useUpdateApplicationStatusMutation,
 } from '../hooks/useQueries';
 import { aiApi } from '../services/api';
+import { FitScoreBadge } from '../components/common/FitScoreBadge';
 import { 
   Plus, 
   Briefcase, 
@@ -25,11 +26,11 @@ import {
   Building, 
   MapPin, 
   DollarSign, 
-  Calendar,
   AlertCircle,
   X,
   TrendingUp,
-  Award
+  Check,
+  UserCheck
 } from 'lucide-react';
 
 export const RecruiterDashboardPage = () => {
@@ -49,13 +50,16 @@ export const RecruiterDashboardPage = () => {
   // Selected job for applicant pipeline view
   const [selectedJob, setSelectedJob] = useState(null);
 
-  // Applicant query for selected job
+  // Tab View for Candidate Pipeline: 'applications' or 'ai-ranked'
+  const [pipelineView, setPipelineView] = useState('ai-ranked');
+
+  // Queries for selected job
   const { data: appsData, isLoading: appsLoading } = useJobApplications(
     selectedJob?.id,
     {},
     !!selectedJob?.id
   );
-  const { data: rankedCandidates = [] } = useTopCandidatesForJob(
+  const { data: rankedCandidates = [], isLoading: rankedLoading } = useTopCandidatesForJob(
     selectedJob?.id,
     !!selectedJob?.id
   );
@@ -64,8 +68,8 @@ export const RecruiterDashboardPage = () => {
   const [showPostModal, setShowPostModal] = useState(false);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [experience, setExperience] = useState('3-5 years');
-  const [salary, setSalary] = useState('$120,000 - $160,000');
+  const [experience, setExperience] = useState('4-6 years');
+  const [salary, setSalary] = useState('$135,000 - $175,000');
   const [companyId, setCompanyId] = useState('1');
   const [employmentType, setEmploymentType] = useState('FULL_TIME');
   const [selectedSkills, setSelectedSkills] = useState([1, 2, 3]);
@@ -222,7 +226,7 @@ export const RecruiterDashboardPage = () => {
       )}
 
       {/* Main Split Layout: Left My Job Postings, Right Applicant Pipeline */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(420px, 1.6fr)', gap: '28px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) minmax(440px, 1.7fr)', gap: '28px' }}>
         {/* Left Column: Requisition Listings */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -288,135 +292,302 @@ export const RecruiterDashboardPage = () => {
           )}
         </div>
 
-        {/* Right Column: Applicant Pipeline & AI Candidate Ranking */}
+        {/* Right Column: AI Candidate Matching & Applicant Pipeline */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
             <div>
               <h2 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>
-                Applicant Review Pipeline
+                Candidate Pipeline
               </h2>
               {activeJob && (
                 <div style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
-                  Viewing candidates for: <strong style={{ color: '#f8fafc' }}>{activeJob.title}</strong>
+                  Active Job: <strong style={{ color: '#f8fafc' }}>{activeJob.title}</strong>
                 </div>
               )}
             </div>
-            {actionSuccess && (
-              <span style={{ color: '#10b981', fontSize: '0.825rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <CheckCircle2 size={14} /> {actionSuccess}
-              </span>
-            )}
+
+            {/* Pipeline View Switcher: AI-Ranked vs Submitted Applications */}
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                onClick={() => setPipelineView('ai-ranked')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid',
+                  borderColor: pipelineView === 'ai-ranked' ? 'var(--primary-glow)' : 'var(--border-subtle)',
+                  background: pipelineView === 'ai-ranked' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.02)',
+                  color: pipelineView === 'ai-ranked' ? '#93c5fd' : 'var(--text-secondary)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <Sparkles size={14} color="#60a5fa" /> AI-Ranked Candidates ({rankedCandidates.length})
+              </button>
+
+              <button
+                onClick={() => setPipelineView('applications')}
+                style={{
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid',
+                  borderColor: pipelineView === 'applications' ? 'var(--primary-glow)' : 'var(--border-subtle)',
+                  background: pipelineView === 'applications' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(255,255,255,0.02)',
+                  color: pipelineView === 'applications' ? '#93c5fd' : 'var(--text-secondary)',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Applications ({applicantsList.length})
+              </button>
+            </div>
           </div>
 
-          {appsLoading ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
-              Loading candidate applications...
+          {actionSuccess && (
+            <div style={{ color: '#10b981', fontSize: '0.825rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <CheckCircle2 size={14} /> {actionSuccess}
             </div>
-          ) : applicantsList.length === 0 ? (
-            <div className="card" style={{ padding: '60px 20px', textAlign: 'center' }}>
-              <Users size={40} color="var(--text-muted)" style={{ margin: '0 auto 12px auto' }} />
-              <h3 style={{ fontSize: '1.15rem', marginBottom: '6px' }}>No candidates applied yet</h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
-                Share this job link or invite qualified candidates to submit their profiles.
-              </p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {applicantsList.map((app) => (
-                <div
-                  key={app.id}
-                  className="card"
-                  style={{
-                    padding: '20px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '14px',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
-                        {app.candidateName || 'Candidate Application'}
-                      </h4>
-                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        {app.candidateEmail} • Applied {new Date(app.appliedAt || app.createdAt).toLocaleDateString()}
+          )}
+
+          {/* VIEW 1: AI-Ranked Candidates */}
+          {pipelineView === 'ai-ranked' ? (
+            rankedLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
+                Running multi-factor AI compatibility engine across candidates...
+              </div>
+            ) : rankedCandidates.length === 0 ? (
+              <div className="card" style={{ padding: '60px 20px', textAlign: 'center' }}>
+                <Sparkles size={40} color="var(--text-muted)" style={{ margin: '0 auto 12px auto' }} />
+                <h3 style={{ fontSize: '1.15rem', marginBottom: '6px' }}>No candidates scored yet</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  Candidates will be automatically ranked by compatibility as profiles and skills are verified.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {rankedCandidates.map((cand) => (
+                  <div
+                    key={cand.candidateId}
+                    className="card"
+                    style={{
+                      padding: '20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                      border: cand.match?.overallScore >= 80 ? '1px solid rgba(16, 185, 129, 0.4)' : undefined,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px' }}>
+                      <div>
+                        <h4 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                          {cand.name}
+                        </h4>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {cand.email}
+                        </div>
                       </div>
-                    </div>
-                    <span className="badge badge-purple">{app.status}</span>
-                  </div>
 
-                  {app.notes && (
-                    <div style={{
-                      padding: '10px 12px',
-                      borderRadius: '8px',
-                      background: 'rgba(255,255,255,0.02)',
-                      fontSize: '0.825rem',
-                      color: 'var(--text-secondary)',
-                    }}>
-                      <strong style={{ color: '#f8fafc' }}>Candidate Note: </strong>
-                      {app.notes}
+                      {/* AI Compatibility Badge */}
+                      {cand.match && (
+                        <FitScoreBadge
+                          score={cand.match.overallScore}
+                          fitLevel={cand.match.fitLevel}
+                          size="md"
+                        />
+                      )}
                     </div>
-                  )}
 
-                  {/* Actions: Download Resume & Pipeline Controls */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    paddingTop: '12px',
-                    borderTop: '1px solid var(--border-subtle)',
-                    flexWrap: 'wrap',
-                    gap: '10px',
-                  }}>
-                    {app.resumeUrl ? (
-                      <a
-                        href={app.resumeUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-secondary"
-                        style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}
-                      >
-                        <Download size={13} /> View Resume
-                      </a>
-                    ) : (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No resume attached</span>
+                    {/* Multi-factor Score Breakdown */}
+                    {cand.match && (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px', padding: '10px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px' }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Skills (60%): </span>
+                          <strong style={{ color: '#93c5fd', fontSize: '0.85rem' }}>{Math.round(cand.match.skillScore)}%</strong>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Experience (25%): </span>
+                          <strong style={{ color: '#a78bfa', fontSize: '0.85rem' }}>{Math.round(cand.match.experienceScore)}%</strong>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Profile (15%): </span>
+                          <strong style={{ color: '#34d399', fontSize: '0.85rem' }}>{Math.round(cand.match.profileCompletenessScore)}%</strong>
+                        </div>
+                      </div>
                     )}
 
-                    {/* Stage transition buttons */}
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button
-                        onClick={() => handleStageUpdate(app.id, 'SHORTLISTED')}
-                        className="btn btn-secondary"
-                        style={{ padding: '5px 10px', fontSize: '0.75rem', color: '#10b981', borderColor: 'rgba(16,185,129,0.3)' }}
-                      >
-                        Shortlist
-                      </button>
-                      <button
-                        onClick={() => handleStageUpdate(app.id, 'INTERVIEW_SCHEDULED')}
-                        className="btn btn-secondary"
-                        style={{ padding: '5px 10px', fontSize: '0.75rem', color: '#f59e0b', borderColor: 'rgba(245,158,11,0.3)' }}
-                      >
-                        Interview
-                      </button>
-                      <button
-                        onClick={() => handleStageUpdate(app.id, 'OFFER_EXTENDED')}
-                        className="btn btn-primary"
-                        style={{ padding: '5px 12px', fontSize: '0.75rem' }}
-                      >
-                        Offer
-                      </button>
-                      <button
-                        onClick={() => handleStageUpdate(app.id, 'REJECTED')}
-                        className="btn btn-secondary"
-                        style={{ padding: '5px 10px', fontSize: '0.75rem', color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
-                      >
-                        Reject
-                      </button>
+                    {/* Matched vs Missing Skills */}
+                    {cand.match?.skillBreakdown && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        {cand.match.skillBreakdown.matchedSkills?.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981' }}>✓ Matched:</span>
+                            {cand.match.skillBreakdown.matchedSkills.map((s, idx) => (
+                              <span key={idx} className="badge badge-success" style={{ fontSize: '0.7rem' }}>
+                                <Check size={11} /> {s}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {cand.match.skillBreakdown.missingRequiredSkills?.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#f59e0b' }}>Missing:</span>
+                            {cand.match.skillBreakdown.missingRequiredSkills.map((s, idx) => (
+                              <span key={idx} className="badge badge-warning" style={{ fontSize: '0.7rem' }}>
+                                {s}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Actions: Resume Download */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      paddingTop: '10px',
+                      borderTop: '1px solid var(--border-subtle)',
+                    }}>
+                      {cand.resumeUrl ? (
+                        <a
+                          href={cand.resumeUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-secondary"
+                          style={{ padding: '5px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <Download size={13} /> View Verified Resume
+                        </a>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Resume verified on file</span>
+                      )}
+
+                      <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>
+                        Candidate #{cand.candidateId}
+                      </span>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )
+          ) : (
+            /* VIEW 2: Standard Applications List */
+            appsLoading ? (
+              <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
+                Loading candidate applications...
+              </div>
+            ) : applicantsList.length === 0 ? (
+              <div className="card" style={{ padding: '60px 20px', textAlign: 'center' }}>
+                <Users size={40} color="var(--text-muted)" style={{ margin: '0 auto 12px auto' }} />
+                <h3 style={{ fontSize: '1.15rem', marginBottom: '6px' }}>No applications received yet</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                  Applications submitted by candidates will appear here with review controls.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {applicantsList.map((app) => (
+                  <div
+                    key={app.id}
+                    className="card"
+                    style={{
+                      padding: '20px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '14px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <h4 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#ffffff', margin: 0 }}>
+                          {app.candidateName || 'Candidate Application'}
+                        </h4>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {app.candidateEmail} • Applied {new Date(app.appliedAt || app.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <span className="badge badge-purple">{app.status}</span>
+                    </div>
+
+                    {app.notes && (
+                      <div style={{
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(255,255,255,0.02)',
+                        fontSize: '0.825rem',
+                        color: 'var(--text-secondary)',
+                      }}>
+                        <strong style={{ color: '#f8fafc' }}>Candidate Note: </strong>
+                        {app.notes}
+                      </div>
+                    )}
+
+                    {/* Actions: Download Resume & Pipeline Controls */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      paddingTop: '12px',
+                      borderTop: '1px solid var(--border-subtle)',
+                      flexWrap: 'wrap',
+                      gap: '10px',
+                    }}>
+                      {app.resumeUrl ? (
+                        <a
+                          href={app.resumeUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="btn btn-secondary"
+                          style={{ padding: '6px 12px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        >
+                          <Download size={13} /> View Resume
+                        </a>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No resume attached</span>
+                      )}
+
+                      {/* Stage transition buttons */}
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          onClick={() => handleStageUpdate(app.id, 'SHORTLISTED')}
+                          className="btn btn-secondary"
+                          style={{ padding: '5px 10px', fontSize: '0.75rem', color: '#10b981', borderColor: 'rgba(16,185,129,0.3)' }}
+                        >
+                          Shortlist
+                        </button>
+                        <button
+                          onClick={() => handleStageUpdate(app.id, 'INTERVIEW_SCHEDULED')}
+                          className="btn btn-secondary"
+                          style={{ padding: '5px 10px', fontSize: '0.75rem', color: '#f59e0b', borderColor: 'rgba(245,158,11,0.3)' }}
+                        >
+                          Interview
+                        </button>
+                        <button
+                          onClick={() => handleStageUpdate(app.id, 'OFFER_EXTENDED')}
+                          className="btn btn-primary"
+                          style={{ padding: '5px 12px', fontSize: '0.75rem' }}
+                        >
+                          Offer
+                        </button>
+                        <button
+                          onClick={() => handleStageUpdate(app.id, 'REJECTED')}
+                          className="btn btn-secondary"
+                          style={{ padding: '5px 10px', fontSize: '0.75rem', color: '#ef4444', borderColor: 'rgba(239,68,68,0.3)' }}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
         </div>
       </div>
