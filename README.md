@@ -1,294 +1,208 @@
 # CareerForge 🚀
 
-### AI-Powered Job & Recruitment Platform
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4%2B-brightgreen.svg?logo=springboot)](https://spring.io/projects/spring-boot)
+[![Java](https://img.shields.io/badge/Java-21%20LTS-orange.svg?logo=openjdk)](https://openjdk.org/)
+[![React](https://img.shields.io/badge/React-19.3-blue.svg?logo=react)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-8.3-purple.svg?logo=vite)](https://vitejs.dev/)
+[![MySQL](https://img.shields.io/badge/MySQL-8.0%20InnoDB-blue.svg?logo=mysql)](https://www.mysql.com/)
+[![Flyway](https://img.shields.io/badge/Flyway-Migrations%20V1--V7-red.svg?logo=flyway)](https://flywaydb.org/)
+[![Docker](https://img.shields.io/badge/Docker-Multi--Stage%20Compose-2496ED.svg?logo=docker)](https://www.docker.com/)
+[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-1.5%20Flash-4285F4.svg?logo=google)](https://aistudio.google.com/)
 
-CareerForge is a **microservices-based, AI-enabled job and recruitment platform** designed to connect candidates and recruiters through a centralized system.
-
-The project is being developed as an end-to-end learning project to explore **backend engineering, microservices, system design, distributed systems, AI/LLM engineering, cloud deployment, DevOps, and software architecture**.
-
-> **Project Status:** 🚧 In Development  
-> **Development Period:** September 24, 2026 – November 30, 2026
-
----
-
-## 📌 Overview
-
-CareerForge aims to simplify the recruitment process for both candidates and recruiters.
-
-### For Candidates
-
-Candidates will be able to:
-
-- Create and manage professional profiles
-- Add skills, education, and experience
-- Upload resumes
-- Search and filter jobs
-- Apply for jobs
-- Track application status
-- Save jobs
-- Analyze resumes using AI
-- Understand potential job-skill gaps
-- Receive AI-assisted career guidance
-- Practice interviews using AI
-
-### For Recruiters
-
-Recruiters will be able to:
-
-- Create and manage company profiles
-- Create and manage job postings
-- View applications
-- Search and review candidates
-- Shortlist candidates
-- Update application status
-- Receive recruitment-related notifications
-
-### For Administrators
-
-Administrators will be able to:
-
-- Manage users
-- Manage recruiters and companies
-- Manage job postings
-- Handle reported content
-- Monitor platform activity
+> **Next-Generation, AI-Orchestrated Job & Recruitment Platform** featuring multi-dimensional candidate compatibility scoring, Google Gemini generative intelligence, real-time STOMP WebSockets, Apache PDFBox document parsing, and token-bucket rate limiting.
 
 ---
 
-# 🧠 AI Capabilities
+## 📌 Architecture & System Overview
 
-CareerForge will progressively introduce AI capabilities such as:
-
-### Resume Intelligence
-
-Extract structured information from uploaded resumes, including:
-
-- Skills
-- Education
-- Experience
-- Projects
-- Certifications
-
-### AI Job Matching
-
-Compare candidate profiles with job requirements using a combination of structured information and semantic techniques.
-
-### Skill Gap Analysis
-
-Identify potential differences between a candidate's current skills and the skills required for a target role.
-
-### AI Career Assistant
-
-Provide career-related assistance using relevant candidate and platform information.
-
-### RAG-Based Assistance
-
-Use **Retrieval-Augmented Generation (RAG)** to provide LLM responses grounded in relevant information.
-
-Planned concepts include:
-
-```text
-Documents
-    ↓
-Chunking
-    ↓
-Embeddings
-    ↓
-Vector Database
-    ↓
-Retrieval
-    ↓
-LLM
-    ↓
-Context-Aware Response
+```
+                                  [ Browser / Client ]
+                                           │
+                        ┌──────────────────┴──────────────────┐
+                        │      http://localhost:5173          │
+                        │   (Nginx :80 in Docker Compose)     │
+                        └──────────────────┬──────────────────┘
+                                           │
+               ┌───────────────────────────┴───────────────────────────┐
+               │                                                       │
+        [ HTTP / REST ]                                         [ STOMP / WebSocket ]
+       /api/v1/* (Axios)                                        /ws (SockJS Fallback)
+               │                                                       │
+               ▼                                                       ▼
+ ┌─────────────────────────────────────────────────────────────────────────────┐
+ │                      CareerForge Spring Boot 3 Backend                      │
+ │                                                                             │
+ │  ┌───────────────────────┐ ┌──────────────────────┐ ┌────────────────────┐ │
+ │  │ Bucket4j Rate Limiter │ │ Spring Security JWT  │ │ OpenAPI Swagger UI │ │
+ │  └───────────────────────┘ └──────────────────────┘ └────────────────────┘ │
+ │                                                                             │
+ │  ┌───────────────────────────────────────────────────────────────────────┐  │
+ │  │                         Application Modules                           │  │
+ │  │  • Auth & User RBAC (Candidate, Recruiter, Admin)                     │  │
+ │  │  • Job Lifecycle (Draft, Published, Closed) & Taxonomy Taxonomy       │  │
+ │  │  • Candidate Profiles, Experience & Education History                 │  │
+ │  │  • Application Pipeline & Review Progressions                         │  │
+ │  │  • AI Matching Engine (60% Skills, 25% Experience, 15% Profile)       │  │
+ │  │  • Real-Time Notification & Audit Logging                             │  │
+ │  │  • Recruitment Analytics & KPI Dashboard                              │  │
+ │  │  • Resume Storage (Apache PDFBox) & Inline Streaming                  │  │
+ │  └───────────────────────────────────────────────────────────────────────┘  │
+ │                                                                             │
+ │  ┌───────────────────────────────────┐ ┌─────────────────────────────────┐  │
+ │  │   Google Gemini 1.5 Flash AI      │ │   Local File System Resume Vault│  │
+ │  │   (Job Descriptions, Resume Score)│ │   (PDF Uploads & Stream Download│  │
+ │  └───────────────────────────────────┘ └─────────────────────────────────┘  │
+ └──────────────────────────────────────┬──────────────────────────────────────┘
+                                        │
+                               [ HikariCP / JPA ]
+                                        │
+                                        ▼
+                        ┌──────────────────────────────┐
+                        │     MySQL 8.0 InnoDB Database│
+                        │   Flyway Migrations (V1–V7)  │
+                        └──────────────────────────────┘
 ```
 
-### AI Interview Practice
+---
 
-Candidates will be able to practice role-specific interview questions and receive AI-assisted feedback.
+## ✨ Key Capabilities
+
+### 1. 🧠 Multi-Factor AI Matching Engine
+- Multi-dimensional compatibility algorithm scoring candidate fit against job requirements:
+  - **60% Skills Overlap**: Jaccard-weighted taxonomy alignment with matched vs missing skill feedback.
+  - **25% Experience Depth**: Ratio of candidate career tenure to job experience requirements.
+  - **15% Profile Completeness**: Bio, verified education records, and resume document availability.
+- Accessible via `/api/v1/jobs/{jobId}/match` and candidate recommendation feed `/api/v1/candidate/job-matches`.
+
+### 2. ⚡ Google Gemini Generative Intelligence
+- **1-Click AI Job Description Generator**: Auto-generates comprehensive responsibilities, required qualifications, and company culture descriptions from title and key technologies.
+- **Resume Intelligence Analyzer**: Parses extracted PDF text with Gemini to extract key technologies, calculate resume strength score (0–100%), and offer actionable improvement suggestions.
+
+### 3. 📄 Apache PDFBox Document Vault
+- Validates multipart PDF uploads (max 5MB), checks MIME types, prevents directory traversal, and extracts text content.
+- Streams PDF documents inline directly to recruiter browsers for applicant reviews.
+
+### 4. 🔔 Real-Time STOMP WebSockets
+- Asynchronous notifications dispatched when application stages progress (`SUBMITTED` -> `SHORTLISTED` -> `INTERVIEW_SCHEDULED` -> `OFFER_EXTENDED` / `REJECTED`).
+- User-specific private queues (`/user/{email}/queue/notifications`) and public broadcast announcements (`/topic/announcements`).
+
+### 5. 🛡️ Token-Bucket Rate Limiting (Bucket4j)
+- High-throughput endpoint rate limiting by IP:
+  - Auth endpoints: 10 requests / minute
+  - AI endpoints: 5 requests / minute
+  - General API: 100 requests / minute
+- Sends standard `X-Rate-Limit-Remaining` and `Retry-After` headers on HTTP 429.
 
 ---
 
-# 🏗️ Planned Architecture
+## 🛠️ Technology Stack
 
-CareerForge is planned as a **microservices-based architecture**.
-
-Initial architectural direction:
-
-                         ┌─────────────────┐
-                         │     Client      │
-                         │ React / Web App │
-                         └────────┬────────┘
-                                  │
-                                  ▼
-                         ┌─────────────────┐
-                         │   API Gateway   │
-                         └────────┬────────┘
-                                  │
-            ┌─────────────┬───────┼────────┬─────────────┐
-            ▼             ▼       ▼        ▼             ▼
-       Auth Service  User Service  Job   Application   Resume
-                                  Service   Service    Service
-                                    │          │          │
-                                    └──────────┼──────────┘
-                                               │
-                                             Kafka
-                                               │
-                            ┌──────────────────┼──────────────────┐
-                            ▼                  ▼                  ▼
-                       Notification        AI Service         Analytics
-                         Service               │
-                                               ▼
-                                         Vector Store
-                                               │
-                                               ▼
-                                              LLM
-
-
-> The final service boundaries and architecture will be determined during the system-design phase.
+| Layer | Technologies |
+| :--- | :--- |
+| **Backend** | Java 21 LTS, Spring Boot 3.4+, Spring Data JPA, Spring Security, Flyway, JJWT, Bucket4j, SpringDoc OpenAPI 3.0, Apache PDFBox |
+| **Frontend** | React 19, Vite, Axios with Bearer Interceptors, TanStack Query v5, STOMP.js & SockJS, Lucide Icons, Vanilla CSS Design System |
+| **Database** | MySQL 8.0 (InnoDB engine, UTF8MB4, foreign key cascade constraints, Flyway V1–V7) |
+| **AI / LLM** | Google Gemini 1.5 Flash (Google AI Studio REST integration) |
+| **Containerization** | Multi-stage Dockerfiles (Eclipse Temurin 21 JRE, Nginx Alpine), Docker Compose |
 
 ---
 
-# 🛠️ Technology Stack
+## 🚀 Quickstart Guide
 
-The technology stack will evolve as the project progresses.
+### Option 1: Running Locally (Development Mode)
 
-## Backend
+#### Prerequisites
+- **JDK 21** (`java -version`)
+- **Node.js 20+** and **npm** (`node -v`)
+- **MySQL 8.0** running on `localhost:3306`
 
-- Java
-- Spring Boot
-- Spring MVC
-- Spring Data JPA
-- Hibernate
-- Spring Security
+#### 1. Setup Database
+Create the MySQL database:
+```sql
+CREATE DATABASE careerforge_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
 
-## Frontend
+#### 2. Start Backend Server
+```bash
+cd backend
+./mvnw spring-boot:run
+```
+*The Spring Boot backend will auto-migrate Flyway scripts V1 through V7 and listen on `http://localhost:8080`.*
 
-- React
-- TypeScript
-
-## Database
-
-- PostgreSQL
-- SQL
-- JPA/Hibernate
-
-## Distributed Systems
-
-- Apache Kafka
-- Redis
-- REST APIs
-- Event-driven architecture
-
-## AI / LLM
-
-- LLM APIs
-- Embeddings
-- Vector database
-- RAG
-- Prompt engineering
-- AI evaluation
-
-## DevOps
-
-- Git
-- GitHub
-- Docker
-- GitHub Actions
-- CI/CD
-
-## Cloud
-
-- AWS
-- Cloud infrastructure
-- Container deployment
-- Managed database/services where appropriate
-
-## Observability
-
-- Application logging
-- Health checks
-- Metrics
-- Distributed tracing
+#### 3. Start Frontend Client
+```bash
+cd frontend
+npm install
+npm run dev
+```
+*The Vite frontend application will start on `http://localhost:5173`.*
 
 ---
 
-# 📚 Learning Objectives
+### Option 2: Running with Docker Compose (One-Command Deployment)
 
-This project is being developed primarily as a **deep-learning project**, not just as a portfolio application.
+```bash
+# 1. Copy the environment configuration template
+cp .env.example .env
 
-The major learning areas are:
+# 2. Build and run the entire multi-container stack
+docker compose up --build
+```
 
-### Backend Engineering
-
-- Java
-- Spring Framework
-- Spring Boot
-- REST API design
-- Dependency Injection
-- JPA/Hibernate
-- Transactions
-- Exception handling
-- Validation
-- Security
-
-### Database Engineering
-
-- ER modeling
-- Relational database design
-- Normalization
-- SQL
-- Indexing
-- Transactions
-- Isolation levels
-- Query optimization
-
-### System Design
-
-- High-Level Design
-- Low-Level Design
-- Microservice boundaries
-- API Gateway
-- Scalability
-- Availability
-- Caching
-- Load balancing
-- Fault tolerance
-
-### Distributed Systems
-
-- Kafka
-- Event-driven architecture
-- Asynchronous processing
-- Idempotency
-- Retries
-- Timeouts
-- Circuit breakers
-- Eventual consistency
-- Distributed transactions
-
-### AI Engineering
-
-- LLM integration
-- Prompt engineering
-- Structured outputs
-- Embeddings
-- Vector search
-- RAG
-- Context management
-- AI evaluation
-- Hallucination mitigation
-- Tool/function calling
-
-### DevOps & Cloud
-
-- Docker
-- CI/CD
-- AWS
-- Deployment
-- Secrets management
-- Monitoring
-- Logging
-- Observability
+Services started:
+- **MySQL 8 Container**: Port 3306 with healthcheck and persistent volume `mysql_data`.
+- **Spring Boot Backend**: Port 8080 with auto-healing Flyway migrations.
+- **Nginx & React Frontend**: Port 80 with SPA routing, reverse proxy `/api/`, and WebSocket upgrade `/ws/`.
 
 ---
+
+## 🔑 Demo Accounts
+
+Use these pre-seeded demo accounts on the **Login Page** or click the 1-click evaluation buttons:
+
+| Role | Email | Password | Pre-Configured Assets |
+| :--- | :--- | :--- | :--- |
+| **Candidate** | `sarah.chen@example.com` | `Candidate@123` | Full engineering profile, Java/Spring/React skills, PDF resume |
+| **Recruiter** | `alex.recruiter@example.com` | `Recruiter@123` | TechCorp Innovations recruiter, active distributed systems job listing |
+
+---
+
+## 📖 API Documentation (OpenAPI Swagger)
+
+When the backend is running, inspect and test interactive endpoints via Swagger UI:
+- **Swagger UI**: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+- **OpenAPI JSON Spec**: [http://localhost:8080/v3/api-docs](http://localhost:8080/v3/api-docs)
+
+### Primary Endpoint Map:
+- **Auth**: `POST /api/v1/auth/register`, `POST /api/v1/auth/login`
+- **Jobs**: `GET /api/v1/jobs`, `POST /api/v1/jobs`, `PATCH /api/v1/jobs/{id}/status`
+- **Matching**: `GET /api/v1/jobs/{id}/match`, `GET /api/v1/candidate/job-matches`, `GET /api/v1/recruiter/jobs/{id}/candidate-matches`
+- **Applications**: `POST /api/v1/jobs/{id}/apply`, `GET /api/v1/candidate/applications`, `PATCH /api/v1/recruiter/applications/{id}/status`
+- **Profiles**: `GET /api/v1/candidate/profile`, `PUT /api/v1/candidate/profile`, `POST /api/v1/candidate/education`, `POST /api/v1/candidate/experience`
+- **Resumes**: `POST /api/v1/candidate/resume/upload`, `GET /api/v1/candidate/resume/download/{fileName}`
+- **AI Assist**: `POST /api/v1/ai/jobs/generate-description`, `POST /api/v1/ai/resume/analyze`
+- **Notifications**: `GET /api/v1/notifications`, `GET /api/v1/notifications/unread-count`, `POST /api/v1/notifications/test-push`
+- **Analytics**: `GET /api/v1/analytics/kpis`, `GET /api/v1/analytics/skills/demand-supply`
+
+---
+
+## 🧪 Testing Suite
+
+### Backend Unit & Integration Tests (21 Passing Tests)
+```bash
+cd backend
+./mvnw test
+```
+*Validates JWT authentication filters, Bucket4j rate limiting, AI matching engine calculation, applicant pipeline progressions, and Flyway migration integrity against in-memory H2 database.*
+
+### Frontend Production Build
+```bash
+cd frontend
+npm run build
+```
+*Validates type safety, JSX syntax, Rollup chunk minification, and CSS tokens.*
+
+---
+
+## 📄 License
+This project is licensed under the MIT License.
